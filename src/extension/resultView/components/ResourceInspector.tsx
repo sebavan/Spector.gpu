@@ -207,15 +207,12 @@ function TextureThumbnail({ texture, capture }: { texture: ITextureInfo; capture
     if (usage & 0x08) usageFlags.push('STORAGE_BINDING');
     if (usage & 0x10) usageFlags.push('RENDER_ATTACHMENT');
 
-    // Any texture with RENDER_ATTACHMENT usage may have been rendered to.
-    // Use the capture's visual output as a preview for these textures.
-    const isRenderTarget = !!(usage & 0x10);
-
-    // Use the capture's visual output as a proxy preview for render targets
+    // Only show the canvas screenshot for the actual canvas texture,
+    // not for all render targets (depth buffers, shadow maps, G-buffers, etc.)
     let previewUrl: string | null = null;
     if (texture.previewDataUrl) {
         previewUrl = texture.previewDataUrl;
-    } else if (isRenderTarget) {
+    } else if (texture.isCanvasTexture) {
         previewUrl = findVisualOutput(capture.commands);
     }
 

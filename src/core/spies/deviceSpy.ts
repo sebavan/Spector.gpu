@@ -126,7 +126,7 @@ export class DeviceSpy {
             after(methodName, args, result) {
                 if (result) {
                     rm.recordTextureCreation(result as object, args[0]);
-                    self._patchTextureCreateView(result as GPUTexture);
+                    self.patchTextureCreateView(result as GPUTexture);
                 }
                 cb.onCommand?.(methodName, [...args], result);
             },
@@ -243,9 +243,12 @@ export class DeviceSpy {
         Logger.info('Device spy installed on:', (device as any).label || 'unlabeled device');
     }
 
-    private _patchTextureCreateView(texture: GPUTexture): void {
+    public patchTextureCreateView(texture: GPUTexture): void {
         const rm = this._recorderManager;
         if ('createView' in texture) {
+            // Guard: if already patched (e.g. canvas texture patched from
+            // both getCurrentTexture hook and createTexture), skip.
+            if (globalOriginStore.has(texture, 'createView')) return;
             globalOriginStore.save(texture, 'createView');
             patchMethod(texture, 'createView', {
                 after(_methodName, args, result) {

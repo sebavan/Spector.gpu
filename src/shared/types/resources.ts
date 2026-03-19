@@ -46,6 +46,8 @@ export interface ITextureInfo {
     readonly format: string;
     /** GPUTextureUsageFlags bitmask. */
     readonly usage: number;
+    /** True if this texture was obtained via GPUCanvasContext.getCurrentTexture(). */
+    readonly isCanvasTexture?: boolean;
     /** Base64 data-URL preview; populated only after readback. */
     readonly previewDataUrl?: string;
 }

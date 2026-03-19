@@ -374,7 +374,28 @@ export class SpectorGPU {
                         self._discoverDevice(dev);
                     }
                 }
-                return original.apply(this, arguments);
+                const texture = original.apply(this, arguments);
+                // Track the canvas texture so it appears in the resource list
+                // with isCanvasTexture=true. Idempotent — recordCanvasTexture
+                // returns early if this exact object is already tracked.
+                if (texture) {
+                    try {
+                        const t = texture as GPUTexture;
+                        const id = self._recorderManager.recordCanvasTexture(
+                            t,
+                            t.format ?? 'bgra8unorm',
+                            t.width ?? 0,
+                            t.height ?? 0,
+                        );
+                        // Patch createView on the canvas texture so its views
+                        // are tracked (same as device.createTexture() textures).
+                        // patchTextureCreateView is idempotent via globalOriginStore.
+                        if (id) {
+                            self._deviceSpy.patchTextureCreateView(t);
+                        }
+                    } catch { /* best-effort — don't break the app */ }
+                }
+                return texture;
             };
         }
     }

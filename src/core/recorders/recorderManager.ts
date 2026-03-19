@@ -131,6 +131,31 @@ export class RecorderManager {
         return id;
     }
 
+    /**
+     * Record a canvas texture obtained via GPUCanvasContext.getCurrentTexture().
+     * These bypass device.createTexture() and would otherwise be invisible.
+     * Idempotent — returns existing ID if the texture is already tracked
+     * (getCurrentTexture() may return the same object within a frame).
+     */
+    public recordCanvasTexture(texture: object, format: string, width: number, height: number): string {
+        const existingId = this._objectIds.get(texture);
+        if (existingId !== undefined) return existingId;
+
+        const id = this.trackObject(texture, 'tex');
+        this._textures.set(id, {
+            id,
+            label: 'Canvas Texture',
+            size: { width, height, depthOrArrayLayers: 1 },
+            mipLevelCount: 1,
+            sampleCount: 1,
+            dimension: '2d',
+            format,
+            usage: 0x10, // RENDER_ATTACHMENT (at minimum)
+            isCanvasTexture: true,
+        });
+        return id;
+    }
+
     public recordTextureDestroy(texture: object): void {
         // Intentional no-op: we keep the info because captures,
         // texture views, and bind groups may still reference it.
