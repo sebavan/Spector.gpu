@@ -113,6 +113,14 @@ export class SpectorGPU {
     private _origQueueSubmit: { proto: any; original: Function } | null = null;
     private _contextToDevice = new WeakMap<object, GPUDevice>();
 
+    // WebGPU canvas tracking — set via configure() hook and onWebGPUContextCreated.
+    // Used by _captureCanvasScreenshot() to target the correct canvas.
+    private _webgpuCanvas: HTMLCanvasElement | OffscreenCanvas | null = null;
+
+    // Screenshot captured during queue.submit() while back buffer is still valid.
+    // Consumed by _buildCapture(). Null means no screenshot was taken this frame.
+    private _pendingScreenshot: string | null = null;
+
     // Pass state tracking (for state snapshots on draw/dispatch nodes).
     // Updated incrementally via _trackPassState(); reset on each new pass.
     private _currentPipelineId: string | null = null;
@@ -340,6 +348,14 @@ export class SpectorGPU {
                     self._contextToDevice.set(this, config.device);
                     self._discoverDevice(config.device);
                 }
+                // Track the WebGPU canvas for screenshot targeting.
+                // GPUCanvasContext.canvas gives us the exact canvas element.
+                try {
+                    const canvas = (this as any).canvas;
+                    if (canvas) {
+                        self._webgpuCanvas = canvas;
+                    }
+                } catch { /* canvas property may not exist in all environments */ }
                 return original.apply(this, arguments);
             };
         }
@@ -487,6 +503,11 @@ export class SpectorGPU {
     // ── Spy wiring (called once from init) ───────────────────────────
 
     private _wireSpies(): void {
+        // Track the WebGPU canvas when getContext('webgpu') is called.
+        this._canvasSpy.onWebGPUContextCreated.add(({ canvas }) => {
+            this._webgpuCanvas = canvas;
+        });
+
         // Adapter created → detect WebGPU, spy on device creation
         this._gpuSpy.onAdapterCreated.add(({ adapter, info }) => {
             this._adapterInfo = info;
@@ -621,6 +642,12 @@ export class SpectorGPU {
                     'submit',
                     { commandBufferCount: commandBuffers.length },
                 );
+
+                // Capture screenshot NOW — content is still in the back buffer
+                // before the browser composites at end of frame task.
+                // WebGPU canvases clear their back buffer after presentation,
+                // so capturing in _buildCapture() (after 2 rAFs) yields blank images.
+                this._pendingScreenshot = this._captureCanvasScreenshot();
             }
         });
     }
@@ -669,50 +696,94 @@ export class SpectorGPU {
     // ── Capture internals ────────────────────────────────────────────
 
     /**
-     * Capture a screenshot of any active canvas on the page.
-     * Uses a temporary offscreen canvas to scale down to at most 256px
-     * wide, keeping capture data small. Returns a PNG data URL.
+     * Capture a screenshot of the WebGPU render canvas.
      *
-     * Best-effort: returns null if no suitable canvas is found or if
-     * any error occurs. Never throws.
+     * Strategy:
+     *   1. Use the known WebGPU canvas (tracked via configure() / getContext('webgpu'))
+     *   2. Fallback: find the largest canvas on the page (avoids Monaco editor etc.)
+     *
+     * Scales down to at most 256px wide for compact capture data.
+     * Validates pixel content — returns null for blank/expired canvases
+     * rather than returning a white image.
+     *
+     * MUST be called during queue.submit() while the back buffer is valid.
+     * WebGPU canvases clear after presentation, so post-composite calls yield blank.
+     *
+     * Best-effort: returns null on any failure. Never throws.
      */
     private _captureCanvasScreenshot(): string | null {
         try {
-            const canvases = document.querySelectorAll('canvas');
-            for (let i = 0; i < canvases.length; i++) {
-                const canvas = canvases[i];
-                if (canvas.width <= 0 || canvas.height <= 0) continue;
+            // 1. Prefer the known WebGPU canvas
+            let targetCanvas: HTMLCanvasElement | null = null;
 
-                const MAX_WIDTH = 256;
-                const scale = Math.min(1, MAX_WIDTH / canvas.width);
-                const thumbWidth = Math.round(canvas.width * scale);
-                const thumbHeight = Math.round(canvas.height * scale);
+            if (this._webgpuCanvas && this._webgpuCanvas instanceof HTMLCanvasElement) {
+                targetCanvas = this._webgpuCanvas;
+            }
 
-                const offscreen = document.createElement('canvas');
-                offscreen.width = thumbWidth;
-                offscreen.height = thumbHeight;
-                const ctx = offscreen.getContext('2d');
-                if (!ctx) continue;
-
-                ctx.drawImage(canvas, 0, 0, thumbWidth, thumbHeight);
-                const dataUrl = offscreen.toDataURL('image/png');
-
-                // Verify we got actual pixel data, not a blank canvas.
-                // A blank 1×1 PNG data URL is ~90 chars; anything real is larger.
-                if (dataUrl.length > 100) {
-                    return dataUrl;
+            // 2. Fallback: find the largest canvas on the page.
+            //    Largest-area heuristic avoids picking Monaco editor canvases,
+            //    UI overlays, and other small utility canvases.
+            if (!targetCanvas && typeof document !== 'undefined') {
+                const canvases = document.querySelectorAll('canvas');
+                let maxArea = 0;
+                for (let i = 0; i < canvases.length; i++) {
+                    const c = canvases[i];
+                    const area = c.width * c.height;
+                    if (area > maxArea && c.width > 10 && c.height > 10) {
+                        maxArea = area;
+                        targetCanvas = c;
+                    }
                 }
             }
-        } catch (_e) {
+
+            if (!targetCanvas || targetCanvas.width < 10 || targetCanvas.height < 10) return null;
+
+            // Scale down for thumbnail
+            const MAX_WIDTH = 256;
+            const scale = Math.min(1, MAX_WIDTH / targetCanvas.width);
+            const thumbWidth = Math.round(targetCanvas.width * scale);
+            const thumbHeight = Math.round(targetCanvas.height * scale);
+
+            const offscreen = document.createElement('canvas');
+            offscreen.width = thumbWidth;
+            offscreen.height = thumbHeight;
+            const ctx = offscreen.getContext('2d');
+            if (!ctx) return null;
+
+            ctx.drawImage(targetCanvas, 0, 0, thumbWidth, thumbHeight);
+
+            // Validate pixel content — reject blank/expired back buffers.
+            // Sample every 4th pixel (stride 16 in RGBA byte array) for speed.
+            const imageData = ctx.getImageData(0, 0, thumbWidth, thumbHeight);
+            const data = imageData.data;
+            let nonZeroPixels = 0;
+            for (let i = 0; i < data.length; i += 16) {
+                if (data[i] > 5 || data[i + 1] > 5 || data[i + 2] > 5) {
+                    nonZeroPixels++;
+                    break; // One non-black pixel is enough — early exit
+                }
+            }
+
+            if (nonZeroPixels === 0) {
+                // Canvas is blank — WebGPU back buffer already expired or
+                // scene is completely black. Return null; UI shows no preview.
+                return null;
+            }
+
+            return offscreen.toDataURL('image/png');
+        } catch {
             // Silent fail — screenshot is best-effort.
+            return null;
         }
-        return null;
     }
 
     /** Build the ICapture from current tree + resource state. */
     private _buildCapture(): ICapture {
-        // Take screenshot now — the frame has been composited after 2 rAFs.
-        const screenshot = this._captureCanvasScreenshot();
+        // Use the screenshot captured during queue.submit() while the back
+        // buffer was still valid. Falls back to a fresh capture attempt
+        // (works for non-WebGPU canvases that don't clear on presentation).
+        const screenshot = this._pendingScreenshot ?? this._captureCanvasScreenshot();
+        this._pendingScreenshot = null;
         if (screenshot && this._commandTree) {
             this._commandTree.setVisualOutputOnAllPasses(screenshot);
         }
@@ -760,6 +831,7 @@ export class SpectorGPU {
     private _clearCaptureState(): void {
         this._isCapturing = false;
         this._commandTree = null;
+        this._pendingScreenshot = null;
         if (this._captureTimeoutId !== null) {
             clearTimeout(this._captureTimeoutId);
             this._captureTimeoutId = null;

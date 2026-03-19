@@ -2,8 +2,9 @@
  * E2E: Capture quality — visual output and pipeline association tests.
  *
  * Verifies two critical bugs are fixed:
- *   Bug 1: Screenshots are taken AFTER the frame is composited (not
- *           during queue.submit), producing non-blank visual output.
+ *   Bug 1: Screenshots are captured during queue.submit() while the WebGPU
+ *           back buffer is still valid (not after frame presentation when
+ *           the content has been cleared), producing non-blank visual output.
  *   Bug 2: Draw call nodes carry pipelineId linking to actual pipelines
  *           and shaders in the resource map.
  *
