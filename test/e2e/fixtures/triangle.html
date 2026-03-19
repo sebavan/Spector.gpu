@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head><title>WebGPU Triangle Test</title></head>
+<body>
+<canvas id="canvas" width="512" height="512"></canvas>
+<script>
+async function main() {
+    const canvas = document.getElementById('canvas');
+
+    if (!navigator.gpu) {
+        document.title = 'NO_WEBGPU';
+        return;
+    }
+
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) {
+        document.title = 'NO_ADAPTER';
+        return;
+    }
+
+    const device = await adapter.requestDevice();
+    const context = canvas.getContext('webgpu');
+    const format = navigator.gpu.getPreferredCanvasFormat();
+
+    context.configure({
+        device,
+        format,
+        alphaMode: 'premultiplied',
+    });
+
+    const shaderModule = device.createShaderModule({
+        label: 'triangle shader',
+        code: `
+            @vertex
+            fn vs(@builtin(vertex_index) vertexIndex: u32) -> @builtin(position) vec4f {
+                let pos = array<vec2f, 3>(
+                    vec2f( 0.0,  0.5),
+                    vec2f(-0.5, -0.5),
+                    vec2f( 0.5, -0.5)
+                );
+                return vec4f(pos[vertexIndex], 0.0, 1.0);
+            }
+
+            @fragment
+            fn fs() -> @location(0) vec4f {
+                return vec4f(0.2, 0.6, 1.0, 1.0);
+            }
+        `
+    });
+
+    const pipeline = device.createRenderPipeline({
+        label: 'triangle pipeline',
+        layout: 'auto',
+        vertex: {
+            module: shaderModule,
+            entryPoint: 'vs',
+        },
+        fragment: {
+            module: shaderModule,
+            entryPoint: 'fs',
+            targets: [{ format }],
+        },
+    });
+
+    function frame() {
+        const commandEncoder = device.createCommandEncoder();
+        const textureView = context.getCurrentTexture().createView();
+
+        const renderPass = commandEncoder.beginRenderPass({
+            colorAttachments: [{
+                view: textureView,
+                clearValue: { r: 0.1, g: 0.1, b: 0.15, a: 1.0 },
+                loadOp: 'clear',
+                storeOp: 'store',
+            }],
+        });
+
+        renderPass.setPipeline(pipeline);
+        renderPass.draw(3);
+        renderPass.end();
+
+        device.queue.submit([commandEncoder.finish()]);
+
+        // Signal to test that a frame was rendered
+        window.__webgpuFrameCount = (window.__webgpuFrameCount || 0) + 1;
+        document.title = 'READY_' + window.__webgpuFrameCount;
+
+        requestAnimationFrame(frame);
+    }
+
+    requestAnimationFrame(frame);
+}
+
+main().catch(err => {
+    document.title = 'ERROR_' + err.message;
+    console.error(err);
+});
+</script>
+</body>
+</html>

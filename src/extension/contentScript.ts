@@ -50,6 +50,9 @@ function init(): void {
             captureId,
             stats: capture.stats,
         });
+
+        // Expose last capture stats for E2E test verification
+        (window as any).__lastCaptureStats = capture.stats;
     });
 
     spectorGpu.onCaptureError.add(({ error }) => {
@@ -62,6 +65,9 @@ function init(): void {
     // ── Initialize passive mode ──────────────────────────────────────
 
     spectorGpu.init();
+
+    // Expose instance for E2E test access (Playwright reads this via page.evaluate)
+    (window as any).__spectorGpuInstance = spectorGpu;
 
     // ── Listen for commands from extension (via ISOLATED proxy) ──────
 
