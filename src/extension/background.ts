@@ -70,9 +70,20 @@ chrome.runtime.onMessage.addListener((message: IMessage, sender, sendResponse) =
                 const payload = message.payload as ICaptureCompletePayload;
                 state.lastCaptureId = payload.captureId;
 
-                chrome.tabs.create({
-                    url: chrome.runtime.getURL(`result.html?captureId=${payload.captureId}&tabId=${tabId}`),
-                }).catch(e => console.error('[SpectorGPU] Failed to open result tab:', e));
+                // Open result view — reuse an existing SpectorGPU result tab if one exists
+                const resultUrl = chrome.runtime.getURL('result.html');
+                chrome.tabs.query({ url: resultUrl + '*' }, (existingTabs) => {
+                    const targetUrl = `${resultUrl}?captureId=${payload.captureId}&tabId=${tabId}`;
+                    if (existingTabs && existingTabs.length > 0) {
+                        // Reuse the first existing result tab
+                        const existingTab = existingTabs[0];
+                        chrome.tabs.update(existingTab.id!, { url: targetUrl, active: true })
+                            .catch(e => console.error('[SpectorGPU] Failed to update result tab:', e));
+                    } else {
+                        chrome.tabs.create({ url: targetUrl })
+                            .catch(e => console.error('[SpectorGPU] Failed to open result tab:', e));
+                    }
+                });
             }
             break;
         }
