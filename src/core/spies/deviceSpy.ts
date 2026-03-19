@@ -28,9 +28,50 @@ export class DeviceSpy {
     private readonly _callbacks: DeviceSpyCallbacks;
     private readonly _patchedDevices = new WeakSet<GPUDevice>();
 
+    // Prototype-level patching state for GPUAdapter.prototype.requestDevice.
+    private _protoPatched = false;
+    private _originalRequestDevice: Function | null = null;
+    private _adapterPrototype: object | null = null;
+
     constructor(recorderManager: RecorderManager, callbacks: DeviceSpyCallbacks = {}) {
         this._recorderManager = recorderManager;
         this._callbacks = callbacks;
+    }
+
+    /**
+     * Patch GPUAdapter.prototype.requestDevice so that ANY adapter —
+     * including ones obtained before our spy was installed — will have
+     * their requestDevice calls intercepted. This closes the race
+     * where the page grabs an adapter before the content script runs.
+     *
+     * Idempotent. Safe to call when GPUAdapter is not available (no-op).
+     */
+    public installPrototypeSpy(): void {
+        if (this._protoPatched) return;
+
+        const adapterProto = this._getAdapterPrototype();
+        if (!adapterProto) return;
+
+        const originalRequestDevice = (adapterProto as Record<string, unknown>).requestDevice;
+        if (typeof originalRequestDevice !== 'function') return;
+
+        this._originalRequestDevice = originalRequestDevice;
+        this._adapterPrototype = adapterProto;
+
+        const self = this;
+
+        (adapterProto as Record<string, unknown>).requestDevice = async function (
+            this: GPUAdapter,
+            ...args: unknown[]
+        ) {
+            const device = await (originalRequestDevice as Function).apply(this, args);
+            if (device) {
+                self.spyOnDevice(device as GPUDevice);
+            }
+            return device;
+        };
+
+        this._protoPatched = true;
     }
 
     /**
@@ -215,7 +256,23 @@ export class DeviceSpy {
     }
 
     public dispose(): void {
+        // Restore prototype-level patch if installed.
+        if (this._adapterPrototype && this._originalRequestDevice) {
+            (this._adapterPrototype as Record<string, unknown>).requestDevice =
+                this._originalRequestDevice;
+        }
+        this._protoPatched = false;
+        this._adapterPrototype = null;
+        this._originalRequestDevice = null;
+
         this.onDeviceCreated.clear();
         this.onDeviceLost.clear();
+    }
+
+    private _getAdapterPrototype(): object | null {
+        if (typeof GPUAdapter !== 'undefined') {
+            return GPUAdapter.prototype as object;
+        }
+        return null;
     }
 }

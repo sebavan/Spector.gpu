@@ -287,4 +287,94 @@ describe('DeviceSpy', () => {
         expect(id).toBeDefined();
         expect(id!.startsWith('bgl_')).toBe(true);
     });
+
+    // ── Prototype-level patching tests ──────────────────────────────
+
+    describe('installPrototypeSpy', () => {
+        let savedGPUAdapter: unknown;
+
+        beforeEach(() => {
+            // Expose MockGPUAdapter as the global GPUAdapter so
+            // _getAdapterPrototype() can find it.
+            savedGPUAdapter = (globalThis as any).GPUAdapter;
+            (globalThis as any).GPUAdapter = MockGPUAdapter;
+        });
+
+        afterEach(() => {
+            if (savedGPUAdapter === undefined) {
+                delete (globalThis as any).GPUAdapter;
+            } else {
+                (globalThis as any).GPUAdapter = savedGPUAdapter;
+            }
+        });
+
+        it('patches GPUAdapter.prototype.requestDevice', async () => {
+            const originalRD = MockGPUAdapter.prototype.requestDevice;
+
+            deviceSpy.installPrototypeSpy();
+
+            expect(MockGPUAdapter.prototype.requestDevice).not.toBe(originalRD);
+
+            // Clean up
+            deviceSpy.dispose();
+            expect(MockGPUAdapter.prototype.requestDevice).toBe(originalRD);
+        });
+
+        it('intercepts requestDevice on any adapter instance', async () => {
+            const received: GPUDevice[] = [];
+            deviceSpy.onDeviceCreated.add((d) => received.push(d));
+
+            deviceSpy.installPrototypeSpy();
+
+            // Create a fresh adapter AFTER installing prototype spy
+            const freshAdapter = new MockGPUAdapter();
+            const newDevice = await freshAdapter.requestDevice();
+
+            expect(received).toHaveLength(1);
+            expect(received[0]).toBe(newDevice);
+        });
+
+        it('intercepts requestDevice on adapter obtained BEFORE install', async () => {
+            // Obtain adapter BEFORE installing spy
+            const earlyAdapter = new MockGPUAdapter();
+
+            const received: GPUDevice[] = [];
+            deviceSpy.onDeviceCreated.add((d) => received.push(d));
+
+            // Now install prototype spy
+            deviceSpy.installPrototypeSpy();
+
+            // Call requestDevice on the early adapter — should still be intercepted
+            const device = await earlyAdapter.requestDevice();
+
+            expect(received).toHaveLength(1);
+            expect(received[0]).toBe(device);
+        });
+
+        it('double installPrototypeSpy is idempotent', () => {
+            deviceSpy.installPrototypeSpy();
+            const patched = MockGPUAdapter.prototype.requestDevice;
+
+            deviceSpy.installPrototypeSpy();
+            expect(MockGPUAdapter.prototype.requestDevice).toBe(patched);
+        });
+
+        it('dispose restores GPUAdapter.prototype.requestDevice', () => {
+            const original = MockGPUAdapter.prototype.requestDevice;
+
+            deviceSpy.installPrototypeSpy();
+            expect(MockGPUAdapter.prototype.requestDevice).not.toBe(original);
+
+            deviceSpy.dispose();
+            expect(MockGPUAdapter.prototype.requestDevice).toBe(original);
+        });
+
+        it('no-op when GPUAdapter is not available', () => {
+            // Remove global GPUAdapter
+            delete (globalThis as any).GPUAdapter;
+
+            // Should not throw
+            expect(() => deviceSpy.installPrototypeSpy()).not.toThrow();
+        });
+    });
 });

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GpuSpy } from '@core/spies/gpuSpy';
-import { globalOriginStore } from '@core/proxy/originStore';
 import { createMockWebGPU, resetMockIds, type MockGPU } from '../../mocks';
 import type { IAdapterInfo } from '@shared/types';
 
@@ -18,18 +17,17 @@ describe('GpuSpy', () => {
     afterEach(() => {
         spy.dispose();
         mockResult.removeGlobal();
-        // Ensure origin store is clean
-        if (navigator.gpu) {
-            globalOriginStore.restoreAll(navigator.gpu);
-        }
     });
 
-    it('install patches navigator.gpu.requestAdapter', () => {
-        const originalRequestAdapter = navigator.gpu.requestAdapter;
+    it('install patches navigator.gpu.requestAdapter via prototype', () => {
+        const proto = Object.getPrototypeOf(navigator.gpu);
+        const originalRequestAdapter = proto.requestAdapter;
 
         spy.install();
 
-        // The method should have been replaced
+        // The prototype method should have been replaced
+        expect(proto.requestAdapter).not.toBe(originalRequestAdapter);
+        // Instance lookup resolves through prototype
         expect(navigator.gpu.requestAdapter).not.toBe(originalRequestAdapter);
         expect(spy.isInstalled).toBe(true);
     });
@@ -54,10 +52,13 @@ describe('GpuSpy', () => {
     });
 
     it('requestAdapter returning null does not trigger event', async () => {
-        // Override requestAdapter to return null
-        const gpu = navigator.gpu as unknown as MockGPU;
-        const origRA = gpu.requestAdapter.bind(gpu);
-        (gpu as any).requestAdapter = () => Promise.resolve(null);
+        // Override requestAdapter on the prototype (not the instance)
+        // so our spy wrapper properly wraps the null-returning method.
+        const proto = Object.getPrototypeOf(navigator.gpu);
+        const realOriginal = proto.requestAdapter;
+        proto.requestAdapter = function () {
+            return Promise.resolve(null);
+        };
 
         spy.install();
 
@@ -69,28 +70,31 @@ describe('GpuSpy', () => {
         expect(adapter).toBeNull();
         expect(received).toHaveLength(0);
 
-        // Restore so cleanup works
-        (gpu as any).requestAdapter = origRA;
+        // Dispose restores the null-returning fn; put the real one back.
+        spy.dispose();
+        proto.requestAdapter = realOriginal;
     });
 
-    it('dispose restores original methods', () => {
-        const originalRequestAdapter = navigator.gpu.requestAdapter;
+    it('dispose restores original prototype method', () => {
+        const proto = Object.getPrototypeOf(navigator.gpu);
+        const originalRequestAdapter = proto.requestAdapter;
 
         spy.install();
-        expect(navigator.gpu.requestAdapter).not.toBe(originalRequestAdapter);
+        expect(proto.requestAdapter).not.toBe(originalRequestAdapter);
 
         spy.dispose();
-        expect(navigator.gpu.requestAdapter).toBe(originalRequestAdapter);
+        expect(proto.requestAdapter).toBe(originalRequestAdapter);
         expect(spy.isInstalled).toBe(false);
     });
 
     it('double install is idempotent', () => {
         spy.install();
-        const patchedMethod = navigator.gpu.requestAdapter;
+        const proto = Object.getPrototypeOf(navigator.gpu);
+        const patchedMethod = proto.requestAdapter;
 
         spy.install(); // second call
         // Should be the same patched method — not double-wrapped
-        expect(navigator.gpu.requestAdapter).toBe(patchedMethod);
+        expect(proto.requestAdapter).toBe(patchedMethod);
         expect(spy.isInstalled).toBe(true);
     });
 

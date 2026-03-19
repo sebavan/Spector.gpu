@@ -149,7 +149,8 @@ export class SpectorGPU {
         this._initialized = true;
 
         this._wireSpies();
-        this._gpuSpy.install();
+        this._gpuSpy.install();          // patches GPU.prototype.requestAdapter
+        this._deviceSpy.installPrototypeSpy(); // patches GPUAdapter.prototype.requestDevice
         this._canvasSpy.install();
         Logger.info('SpectorGPU initialized (passive mode)');
     }
