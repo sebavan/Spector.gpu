@@ -2,17 +2,17 @@
 // ─────────────────────────────────────────────────────────────────────
 
 // Palette
-$bg-primary: #1e1e2e;
-$bg-secondary: #252536;
-$bg-tertiary: #2d2d42;
-$bg-hover: #353550;
-$bg-selected: #3d3d5c;
+$bg-primary: #0a0a0f;
+$bg-secondary: #111118;
+$bg-tertiary: #1a1a24;
+$bg-hover: #222230;
+$bg-selected: #2a2a3c;
 $text-primary: #e0e0e0;
-$text-secondary: #a0a0b8;
-$text-muted: #707088;
+$text-secondary: #9090a0;
+$text-muted: #606070;
 $accent: #4fc3f7;
 $accent-dark: #2196f3;
-$border: #3a3a50;
+$border: #1f1f30;
 
 // Command-type colors
 $color-submit: #ff9800;
@@ -223,7 +223,7 @@ body {
     font-size: 9px;
     font-weight: 700;
     padding: 1px 4px;
-    border-radius: 3px;
+    border-radius: 2px;
     text-transform: uppercase;
     flex-shrink: 0;
 
@@ -319,7 +319,7 @@ $gutter-width: 48px;
         padding: 4px 12px;
         font-size: 11px;
         border: 1px solid $border;
-        border-radius: 4px;
+        border-radius: 2px;
         background: $bg-tertiary;
         color: $text-secondary;
         cursor: pointer;
@@ -343,7 +343,7 @@ $gutter-width: 48px;
         display: flex;
         background: $bg-tertiary;
         border: 1px solid $border;
-        border-radius: 6px;
+        border-radius: 2px;
         overflow: hidden;
         position: relative;
 
@@ -467,7 +467,7 @@ $gutter-width: 48px;
         margin-bottom: 16px;
         padding: 12px;
         background: $bg-tertiary;
-        border-radius: 6px;
+        border-radius: 2px;
         border: 1px solid $border;
 
         h4 {
@@ -497,7 +497,7 @@ $gutter-width: 48px;
         padding: 4px 12px;
         background: $bg-tertiary;
         border: 1px solid $border;
-        border-radius: 4px;
+        border-radius: 2px;
         color: $text-secondary;
         cursor: pointer;
         font-size: 12px;
@@ -519,7 +519,7 @@ $gutter-width: 48px;
     width: 200px;
     overflow-y: auto;
     border: 1px solid $border;
-    border-radius: 6px;
+    border-radius: 2px;
     background: $bg-tertiary;
 
     .resource-item {
@@ -562,7 +562,7 @@ $gutter-width: 48px;
     padding: 12px;
     background: $bg-tertiary;
     border: 1px solid $border;
-    border-radius: 6px;
+    border-radius: 2px;
     display: flex;
     flex-direction: column;
 }
@@ -614,7 +614,7 @@ $gutter-width: 48px;
 .node-thumbnail {
     width: 32px;
     height: 24px;
-    border-radius: 3px;
+    border-radius: 2px;
     border: 1px solid $border;
     object-fit: cover;
     margin-left: auto;
@@ -624,14 +624,14 @@ $gutter-width: 48px;
 .visual-output {
     background: $bg-tertiary;
     border: 1px solid $border;
-    border-radius: 6px;
+    border-radius: 2px;
     padding: 8px;
     text-align: center;
 
     img {
         max-width: 100%;
         max-height: 400px;
-        border-radius: 4px;
+        border-radius: 2px;
         image-rendering: pixelated;
     }
 }
@@ -641,7 +641,7 @@ $gutter-width: 48px;
 
     .texture-thumbnail {
         border: 1px solid $border;
-        border-radius: 4px;
+        border-radius: 2px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -663,7 +663,7 @@ $gutter-width: 48px;
     .texture-preview-img {
         max-width: 200px;
         border: 1px solid $border;
-        border-radius: 4px;
+        border-radius: 2px;
         margin-bottom: 8px;
     }
 }
@@ -704,9 +704,9 @@ $gutter-width: 48px;
             font-size: 10px;
             font-weight: 700;
             padding: 2px 6px;
-            border-radius: 3px;
+            border-radius: 2px;
             text-transform: uppercase;
-            &.stage-vertex   { background: rgba($color-renderpass, 0.2); color: $color-renderpass; }
+            &.stage-vertex{ background: rgba($color-renderpass, 0.2); color: $color-renderpass; }
             &.stage-fragment { background: rgba($color-draw, 0.2); color: $color-draw; }
             &.stage-compute  { background: rgba($color-computepass, 0.2); color: $color-computepass; }
         }
@@ -715,7 +715,7 @@ $gutter-width: 48px;
             padding: 4px 10px;
             background: $bg-tertiary;
             border: 1px solid $border;
-            border-radius: 4px;
+            border-radius: 2px;
             color: $text-secondary;
             cursor: pointer;
             font-size: 11px;
@@ -727,7 +727,7 @@ $gutter-width: 48px;
         display: flex;
         background: $bg-tertiary;
         border: 1px solid $border;
-        border-radius: 6px;
+        border-radius: 2px;
         overflow: auto;
         flex: 1;
         min-height: 0;
@@ -775,7 +775,7 @@ $gutter-width: 48px;
         h4 { font-size: 12px; color: $text-muted; text-transform: uppercase; margin-bottom: 8px; }
         .comp-msg {
             display: flex; gap: 8px; padding: 4px 8px; font-size: 12px; font-family: monospace;
-            border-radius: 3px; margin-bottom: 2px;
+            border-radius: 2px; margin-bottom: 2px;
             &.comp-msg-error   { background: rgba(#f44336, 0.15); color: #ef9a9a; }
             &.comp-msg-warning { background: rgba(#ff9800, 0.15); color: #ffcc80; }
             &.comp-msg-info    { background: rgba(#2196f3, 0.15); color: #90caf9; }
