@@ -563,6 +563,8 @@ $gutter-width: 48px;
     background: $bg-tertiary;
     border: 1px solid $border;
     border-radius: 6px;
+    display: flex;
+    flex-direction: column;
 }
 
 // ─── JSON tree ───────────────────────────────────────────────────────
@@ -686,6 +688,10 @@ $gutter-width: 48px;
 // ─── Shader module detail in resource inspector ──────────────────────
 
 .shader-module-detail {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    
     .shader-module-header {
         display: flex;
         align-items: center;
@@ -723,7 +729,8 @@ $gutter-width: 48px;
         border: 1px solid $border;
         border-radius: 6px;
         overflow: auto;
-        max-height: 500px;
+        flex: 1;
+        min-height: 0;
 
         .line-numbers {
             padding: 12px 8px;

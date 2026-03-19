@@ -92,7 +92,15 @@ export function ResourceInspector({ capture, navTarget }: { capture: ICapture; n
                     {selectedCategory === 'shaderModules' && selectedResource ? (
                         <ShaderModuleDetail module={selectedResource as IShaderModuleInfo} />
                     ) : selectedCategory === 'textures' && selectedResource ? (
-                        <TextureThumbnail texture={selectedResource as ITextureInfo} capture={capture} />
+                        <>
+                            <TextureThumbnail texture={selectedResource as ITextureInfo} capture={capture} />
+                            <JsonTree data={selectedResource} />
+                        </>
+                    ) : selectedCategory === 'textureViews' && selectedResource ? (
+                        <>
+                            <TextureThumbnail texture={selectedResource as ITextureInfo} capture={capture} />
+                            <JsonTree data={selectedResource} />
+                        </>
                     ) : selectedResource ? (
                         <JsonTree data={selectedResource} />
                     ) : (
@@ -199,15 +207,15 @@ function TextureThumbnail({ texture, capture }: { texture: ITextureInfo; capture
     if (usage & 0x08) usageFlags.push('STORAGE_BINDING');
     if (usage & 0x10) usageFlags.push('RENDER_ATTACHMENT');
 
-    // Canvas/swapchain textures: RENDER_ATTACHMENT + common swapchain format
-    const isLikelyCanvas = !!(usage & 0x10) &&
-        (format.includes('bgra8') || format.includes('rgba8'));
+    // Any texture with RENDER_ATTACHMENT usage may have been rendered to.
+    // Use the capture's visual output as a preview for these textures.
+    const isRenderTarget = !!(usage & 0x10);
 
-    // Use the capture's visual output as a proxy preview for canvas textures
+    // Use the capture's visual output as a proxy preview for render targets
     let previewUrl: string | null = null;
     if (texture.previewDataUrl) {
         previewUrl = texture.previewDataUrl;
-    } else if (isLikelyCanvas) {
+    } else if (isRenderTarget) {
         previewUrl = findVisualOutput(capture.commands);
     }
 
