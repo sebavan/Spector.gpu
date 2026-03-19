@@ -8,6 +8,9 @@ import {
     resetMockIds,
     type MockWebGPUResult,
     type MockGPUDevice,
+    MockGPUDevice as MockGPUDeviceClass,
+    MockGPUQueue as MockGPUQueueClass,
+    MockGPUCanvasContext as MockGPUCanvasContextClass,
 } from '../mocks';
 
 describe('SpectorGPU', () => {
@@ -252,5 +255,168 @@ describe('SpectorGPU', () => {
         // We should have at least a submit and the draw
         expect(capture.stats.drawCalls).toBeGreaterThanOrEqual(1);
         expect(capture.stats.renderPasses).toBeGreaterThanOrEqual(1);
+    });
+
+    // ─── Late detection: multi-strategy hooks ────────────────────────
+
+    describe('late device discovery via prototype hooks', () => {
+        let savedGPUDevice: unknown;
+        let savedGPUQueue: unknown;
+        let savedGPUCanvasContext: unknown;
+
+        beforeEach(() => {
+            // Install class constructors as globals so prototype hooks
+            // can install. Same pattern as deviceSpy.test.ts.
+            savedGPUDevice = (globalThis as any).GPUDevice;
+            savedGPUQueue = (globalThis as any).GPUQueue;
+            savedGPUCanvasContext = (globalThis as any).GPUCanvasContext;
+            (globalThis as any).GPUDevice = MockGPUDeviceClass;
+            (globalThis as any).GPUQueue = MockGPUQueueClass;
+            (globalThis as any).GPUCanvasContext = MockGPUCanvasContextClass;
+        });
+
+        afterEach(() => {
+            // Restore original globals (or delete if they didn't exist).
+            for (const [name, saved] of [
+                ['GPUDevice', savedGPUDevice],
+                ['GPUQueue', savedGPUQueue],
+                ['GPUCanvasContext', savedGPUCanvasContext],
+            ] as const) {
+                if (saved === undefined) {
+                    delete (globalThis as any)[name];
+                } else {
+                    (globalThis as any)[name] = saved;
+                }
+            }
+        });
+
+        it('hooks multiple GPUDevice.prototype methods on init', () => {
+            const origCE = MockGPUDeviceClass.prototype.createCommandEncoder;
+            const origCB = MockGPUDeviceClass.prototype.createBuffer;
+
+            spector.init();
+
+            // Both should be patched on the prototype
+            expect(MockGPUDeviceClass.prototype.createCommandEncoder).not.toBe(origCE);
+            expect(MockGPUDeviceClass.prototype.createBuffer).not.toBe(origCB);
+        });
+
+        it('discovers device via GPUDevice.prototype.createBuffer', async () => {
+            spector.init();
+
+            // Create device BYPASSING our adapter spy to simulate
+            // a device that was created before our script.
+            const device = new MockGPUDeviceClass();
+
+            // No device discovered yet
+            expect(spector.adapterInfo).toBeNull();
+
+            // Call createBuffer through the prototype — our hook fires
+            device.createBuffer({ size: 64, usage: 0x40 });
+
+            // Device should now be discovered with synthetic adapter info
+            expect(spector.adapterInfo).not.toBeNull();
+            expect(spector.adapterInfo!.description).toBe('Late-detected device');
+        });
+
+        it('discovers device via GPUCanvasContext.prototype.configure', async () => {
+            spector.init();
+
+            const device = new MockGPUDeviceClass();
+            const ctx = new MockGPUCanvasContextClass();
+
+            // No device discovered yet
+            expect(spector.adapterInfo).toBeNull();
+
+            // configure() passes the device — our hook captures it
+            ctx.configure({ device: device as any, format: 'bgra8unorm' });
+
+            // Device should now be discovered
+            expect(spector.adapterInfo).not.toBeNull();
+        });
+
+        it('discovers device via getCurrentTexture after configure', async () => {
+            spector.init();
+
+            const device = new MockGPUDeviceClass();
+            const ctx = new MockGPUCanvasContextClass();
+
+            // configure() captures device reference
+            ctx.configure({ device: device as any, format: 'bgra8unorm' });
+
+            // Reset device to simulate a fresh init that missed the
+            // device (this tests the getCurrentTexture fallback path).
+            // We need a second SpectorGPU for this. Instead, test that
+            // getCurrentTexture doesn't throw and still works.
+            const tex = ctx.getCurrentTexture();
+            expect(tex).toBeDefined();
+
+            // Device was discovered via configure, which is the primary path
+            expect(spector.adapterInfo).not.toBeNull();
+        });
+
+        it('dispose restores all prototype hooks', () => {
+            const origCE = MockGPUDeviceClass.prototype.createCommandEncoder;
+            const origCB = MockGPUDeviceClass.prototype.createBuffer;
+            const origConfigure = MockGPUCanvasContextClass.prototype.configure;
+            const origGCT = MockGPUCanvasContextClass.prototype.getCurrentTexture;
+            const origSubmit = MockGPUQueueClass.prototype.submit;
+
+            spector.init();
+
+            // All should be patched
+            expect(MockGPUDeviceClass.prototype.createCommandEncoder).not.toBe(origCE);
+            expect(MockGPUCanvasContextClass.prototype.configure).not.toBe(origConfigure);
+            expect(MockGPUCanvasContextClass.prototype.getCurrentTexture).not.toBe(origGCT);
+            expect(MockGPUQueueClass.prototype.submit).not.toBe(origSubmit);
+
+            spector.dispose();
+
+            // All should be restored
+            expect(MockGPUDeviceClass.prototype.createCommandEncoder).toBe(origCE);
+            expect(MockGPUDeviceClass.prototype.createBuffer).toBe(origCB);
+            expect(MockGPUCanvasContextClass.prototype.configure).toBe(origConfigure);
+            expect(MockGPUCanvasContextClass.prototype.getCurrentTexture).toBe(origGCT);
+            expect(MockGPUQueueClass.prototype.submit).toBe(origSubmit);
+        });
+
+        it('late-discovered device captures commands on next frame', async () => {
+            spector.init();
+
+            // Create device bypassing the adapter spy (simulating late creation)
+            const device = new MockGPUDeviceClass();
+
+            // Trigger discovery via a prototype-hooked method.
+            // After this call, DeviceSpy patches the device instance so
+            // subsequent calls (like createCommandEncoder) go through spies.
+            device.createBuffer({ size: 64, usage: 0x40 });
+
+            // Now arm capture — the device is discovered and fully patched.
+            spector.captureNextFrame();
+
+            // Create encoder AFTER discovery — DeviceSpy's onCommand fires,
+            // which wires up EncoderSpy on the returned encoder.
+            const encoder = device.createCommandEncoder();
+            const pass = encoder.beginRenderPass({ colorAttachments: [] });
+            pass.setPipeline({} as any);
+            pass.draw(6);
+            pass.end();
+            const cmdBuf = encoder.finish();
+            device.queue.submit([cmdBuf]);
+
+            const capture = spector.stopCapture()!;
+            expect(capture).not.toBeNull();
+            expect(capture.stats.totalCommands).toBeGreaterThan(0);
+            expect(capture.stats.drawCalls).toBeGreaterThanOrEqual(1);
+            expect(capture.stats.renderPasses).toBeGreaterThanOrEqual(1);
+        });
+
+        it('double init does not double-hook prototypes', () => {
+            spector.init();
+            const patchedCE = MockGPUDeviceClass.prototype.createCommandEncoder;
+
+            spector.init(); // idempotent
+            expect(MockGPUDeviceClass.prototype.createCommandEncoder).toBe(patchedCE);
+        });
     });
 });

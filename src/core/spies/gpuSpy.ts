@@ -3,20 +3,37 @@ import { Logger } from '@shared/utils/logger';
 import type { IAdapterInfo } from '@shared/types';
 
 /**
- * Intercepts `navigator.gpu.requestAdapter()` to detect adapter creation.
+ * Intercepts `navigator.gpu.requestAdapter()` to detect adapter creation,
+ * AND wraps `requestDevice` on every returned adapter so that device
+ * creation is intercepted at the instance level.
  *
  * Patches at the **prototype level** (`GPU.prototype.requestAdapter`) so
  * that ALL calls through ANY reference to `navigator.gpu` are intercepted —
  * even those made before this code runs, as long as the actual function
- * invocation happens after we patch the prototype. This eliminates the
- * race condition where a page's JS calls `requestAdapter()` before the
- * content script's bundle executes.
+ * invocation happens after we patch the prototype.
+ *
+ * CRITICAL: Chrome puts WebGPU methods as **own properties** on instances
+ * (e.g. `GPUAdapter` instances have their own `requestDevice`), so
+ * prototype-level patching of `GPUAdapter.prototype.requestDevice` is
+ * ineffective — the instance's own property shadows it. We solve this by
+ * wrapping `requestDevice` **inline** in the `requestAdapter` return path,
+ * BEFORE the adapter reaches the caller. This guarantees interception
+ * regardless of how the browser lays out methods.
  *
  * Does NOT use ES6 Proxy — direct method replacement preserves WebGPU
  * brand checks on the underlying GPU object.
  */
 export class GpuSpy {
     public readonly onAdapterCreated = new Observable<{ adapter: GPUAdapter; info: IAdapterInfo }>();
+
+    /**
+     * Fires when a device is created through a wrapped adapter's
+     * `requestDevice()`. This is the PRIMARY device discovery path —
+     * it fires inside the Promise chain, before the caller's `.then()`
+     * or `await` continuation sees the device.
+     */
+    public readonly onDeviceCreated = new Observable<GPUDevice>();
+
     private _installed = false;
     private _patchedPrototype: object | null = null;
     private _originalRequestAdapter: Function | null = null;
@@ -58,6 +75,11 @@ export class GpuSpy {
         ) {
             const adapter = await (originalRequestAdapter as Function).apply(this, args);
             if (adapter) {
+                // Wrap requestDevice on this adapter instance BEFORE
+                // returning it to the caller or triggering onAdapterCreated.
+                // By the time the caller's await/then sees the adapter,
+                // requestDevice is already intercepted.
+                self._wrapRequestDevice(adapter as GPUAdapter);
                 self._handleAdapterCreated(adapter as GPUAdapter);
             }
             return adapter;
@@ -75,6 +97,7 @@ export class GpuSpy {
                 this._originalRequestAdapter;
         }
         this.onAdapterCreated.clear();
+        this.onDeviceCreated.clear();
         this._installed = false;
         this._patchedPrototype = null;
         this._originalRequestAdapter = null;
@@ -103,6 +126,38 @@ export class GpuSpy {
             return GPU.prototype as object;
         }
         return null;
+    }
+
+    /**
+     * Wrap `adapter.requestDevice()` on a specific adapter instance so
+     * device creation is intercepted at the instance level.
+     *
+     * This fires `onDeviceCreated` when the device Promise resolves,
+     * BEFORE the caller's `.then()` / `await` continuation sees the device.
+     *
+     * The original `requestDevice` is bound to the adapter to preserve
+     * WebGPU brand-check / internal-slot correctness.
+     */
+    private _wrapRequestDevice(adapter: GPUAdapter): void {
+        const self = this;
+        // Cast through `any` because GPUAdapter lacks an index signature
+        // and TypeScript won't allow Record<string, unknown> cast directly.
+        const adapterAny = adapter as any;
+        const origRD = adapterAny.requestDevice;
+        if (typeof origRD !== 'function') return;
+
+        // Bind to the real adapter — critical for WebGPU internal slot checks.
+        const boundRD = origRD.bind(adapter);
+
+        adapterAny.requestDevice = async function (
+            ...args: unknown[]
+        ): Promise<GPUDevice> {
+            const device = await boundRD(...args);
+            if (device) {
+                self.onDeviceCreated.trigger(device as GPUDevice);
+            }
+            return device as GPUDevice;
+        };
     }
 
     private _handleAdapterCreated(adapter: GPUAdapter): void {

@@ -104,9 +104,14 @@ export class SpectorGPU {
     private _captureTimeoutId: ReturnType<typeof setTimeout> | null = null;
     private _commandTree: CommandTreeBuilder | null = null;
 
-    // Late-detection prototype patching state.
-    private _devicePrototypePatched = false;
-    private _originalCreateCommandEncoder: Function | null = null;
+    // Late-detection: multi-strategy prototype hooks state.
+    // Stored originals enable clean disposal.
+    private _lateDetectionInstalled = false;
+    private _origDeviceProtoMethods: Array<{ proto: any; name: string; original: Function }> = [];
+    private _origConfigure: { proto: any; original: Function } | null = null;
+    private _origGetCurrentTexture: { proto: any; original: Function } | null = null;
+    private _origQueueSubmit: { proto: any; original: Function } | null = null;
+    private _contextToDevice = new WeakMap<object, GPUDevice>();
 
     // Pass state tracking (for state snapshots on draw/dispatch nodes).
     // Updated incrementally via _trackPassState(); reset on each new pass.
@@ -162,7 +167,7 @@ export class SpectorGPU {
         this._wireSpies();
         this._gpuSpy.install();          // patches GPU.prototype.requestAdapter
         this._deviceSpy.installPrototypeSpy(); // patches GPUAdapter.prototype.requestDevice
-        this._installDevicePrototypeSpy(); // patches GPUDevice.prototype.createCommandEncoder for late detection
+        this._installLateDetectionHooks(); // multi-strategy prototype hooks for late device discovery
         this._canvasSpy.install();
         Logger.info('SpectorGPU initialized (passive mode)');
     }
@@ -178,6 +183,12 @@ export class SpectorGPU {
             return;
         }
         if (this._isCapturing) return;
+
+        // If no device has been found yet, actively probe for one
+        // by scanning DOM canvases whose contexts map to known devices.
+        if (!this._device) {
+            this._probeForDevice();
+        }
 
         this._isCapturing = true;
         this._commandTree = new CommandTreeBuilder();
@@ -217,15 +228,8 @@ export class SpectorGPU {
     public dispose(): void {
         this._clearCaptureState();
 
-        // Restore GPUDevice prototype if patched.
-        if (this._devicePrototypePatched && this._originalCreateCommandEncoder) {
-            const proto: any = typeof GPUDevice !== 'undefined' ? GPUDevice.prototype : null;
-            if (proto) {
-                proto.createCommandEncoder = this._originalCreateCommandEncoder;
-            }
-            this._devicePrototypePatched = false;
-            this._originalCreateCommandEncoder = null;
-        }
+        // Restore all late-detection prototype hooks.
+        this._removeLateDetectionHooks();
 
         this._gpuSpy.dispose();
         this._deviceSpy.dispose();
@@ -242,36 +246,217 @@ export class SpectorGPU {
         this._initialized = false;
     }
 
-    // ── Late-detection: GPUDevice prototype spy ────────────────────────
+    // ── Late-detection: multi-strategy prototype hooks ─────────────────
 
     /**
-     * Patch GPUDevice.prototype.createCommandEncoder so that even if
-     * a device was created before our spy, the first createCommandEncoder
-     * call (which happens every frame) triggers device discovery.
+     * Install multiple prototype-level hooks to discover devices
+     * that were created before our content script ran.
      *
-     * No-op if GPUDevice is not in scope (e.g. jsdom unit tests).
-     * Idempotent — safe to call multiple times.
+     * Strategies (any one can discover the device):
+     *   1. GPUDevice.prototype methods — if the app resolves these
+     *      through the prototype chain, `this` IS the device.
+     *   2. GPUCanvasContext.prototype.configure — the app passes
+     *      its device directly; we capture the reference.
+     *   3. GPUCanvasContext.prototype.getCurrentTexture — called
+     *      every frame; triggers a device lookup if needed.
+     *   4. GPUQueue.prototype.submit — called every frame;
+     *      triggers a canvas-based device scan.
+     *
+     * All hooks are idempotent and safely no-op when the globals
+     * don't exist (e.g. in jsdom unit tests).
      */
-    private _installDevicePrototypeSpy(): void {
-        if (this._devicePrototypePatched) return;
+    private _installLateDetectionHooks(): void {
+        if (this._lateDetectionInstalled) return;
+        this._lateDetectionInstalled = true;
 
-        let proto: any = null;
-        if (typeof GPUDevice !== 'undefined') {
-            proto = GPUDevice.prototype;
+        this._hookDevicePrototypeMethods();
+        this._hookCanvasContextPrototype();
+        this._hookQueuePrototype();
+    }
+
+    /**
+     * Patch multiple methods on GPUDevice.prototype.
+     * Any call through the prototype triggers device discovery via `this`.
+     * Hooks more methods than just createCommandEncoder to maximize
+     * the chance of catching at least one un-cached call.
+     */
+    private _hookDevicePrototypeMethods(): void {
+        if (typeof GPUDevice === 'undefined') return;
+
+        const proto = GPUDevice.prototype as any;
+        const self = this;
+
+        // Hook the most frequently called device methods.
+        // Even if an app caches one (e.g. createCommandEncoder),
+        // it's unlikely to cache ALL of them.
+        const methods = [
+            'createCommandEncoder',
+            'createBuffer',
+            'createTexture',
+            'createShaderModule',
+            'createRenderPipeline',
+            'createComputePipeline',
+            'createBindGroup',
+            'createSampler',
+        ];
+
+        for (let i = 0; i < methods.length; i++) {
+            const name = methods[i];
+            if (typeof proto[name] !== 'function') continue;
+
+            const original = proto[name] as Function;
+            this._origDeviceProtoMethods.push({ proto, name, original });
+
+            proto[name] = function (this: GPUDevice, ...args: any[]) {
+                // 'this' is the GPUDevice instance — discover and patch it.
+                self._discoverDevice(this);
+                return original.apply(this, args);
+            };
         }
-        if (!proto || typeof proto.createCommandEncoder !== 'function') return;
+    }
+
+    /**
+     * Hook GPUCanvasContext.prototype to capture the device reference
+     * from configure() and trigger scans from getCurrentTexture().
+     *
+     * configure() is the MOST reliable hook: the app passes its
+     * device directly as config.device. Even if the app cached
+     * device.createCommandEncoder, it still calls configure() on
+     * the canvas context and doesn't typically cache that.
+     */
+    private _hookCanvasContextPrototype(): void {
+        if (typeof GPUCanvasContext === 'undefined') return;
+
+        const proto = GPUCanvasContext.prototype as any;
+        const self = this;
+
+        // configure({ device, format, ... }) — captures the device reference.
+        if (typeof proto.configure === 'function') {
+            const original = proto.configure as Function;
+            this._origConfigure = { proto, original };
+
+            proto.configure = function (this: GPUCanvasContext, config: any) {
+                if (config?.device) {
+                    self._contextToDevice.set(this, config.device);
+                    self._discoverDevice(config.device);
+                }
+                return original.apply(this, arguments);
+            };
+        }
+
+        // getCurrentTexture() — called every frame by rendering apps.
+        // If we haven't found a device yet, look it up in the
+        // context→device WeakMap populated by the configure hook.
+        if (typeof proto.getCurrentTexture === 'function') {
+            const original = proto.getCurrentTexture as Function;
+            this._origGetCurrentTexture = { proto, original };
+
+            proto.getCurrentTexture = function (this: GPUCanvasContext) {
+                if (!self._device) {
+                    const dev = self._contextToDevice.get(this);
+                    if (dev) {
+                        self._discoverDevice(dev);
+                    }
+                }
+                return original.apply(this, arguments);
+            };
+        }
+    }
+
+    /**
+     * Hook GPUQueue.prototype.submit — called every frame by every
+     * WebGPU app. Cannot directly get the owning device from a queue,
+     * but triggers a canvas-based device scan if no device found.
+     */
+    private _hookQueuePrototype(): void {
+        if (typeof GPUQueue === 'undefined') return;
+
+        const proto = GPUQueue.prototype as any;
+        if (typeof proto.submit !== 'function') return;
+
+        const original = proto.submit as Function;
+        this._origQueueSubmit = { proto, original };
 
         const self = this;
-        this._originalCreateCommandEncoder = proto.createCommandEncoder;
-        const original = this._originalCreateCommandEncoder!;
 
-        proto.createCommandEncoder = function (this: GPUDevice, ...args: any[]) {
-            // 'this' is the GPUDevice instance — discover and patch it.
-            self._discoverDevice(this);
-            return original.apply(this, args);
+        proto.submit = function (this: GPUQueue) {
+            if (!self._device) {
+                self._probeForDevice();
+            }
+            return original.apply(this, arguments);
         };
+    }
 
-        this._devicePrototypePatched = true;
+    /**
+     * Restore all prototype hooks installed by _installLateDetectionHooks.
+     * Called from dispose(). Safe to call multiple times.
+     */
+    private _removeLateDetectionHooks(): void {
+        // Restore GPUDevice.prototype methods
+        for (let i = 0; i < this._origDeviceProtoMethods.length; i++) {
+            const { proto, name, original } = this._origDeviceProtoMethods[i];
+            proto[name] = original;
+        }
+        this._origDeviceProtoMethods.length = 0;
+
+        // Restore GPUCanvasContext.prototype.configure
+        if (this._origConfigure) {
+            this._origConfigure.proto.configure = this._origConfigure.original;
+            this._origConfigure = null;
+        }
+
+        // Restore GPUCanvasContext.prototype.getCurrentTexture
+        if (this._origGetCurrentTexture) {
+            this._origGetCurrentTexture.proto.getCurrentTexture = this._origGetCurrentTexture.original;
+            this._origGetCurrentTexture = null;
+        }
+
+        // Restore GPUQueue.prototype.submit
+        if (this._origQueueSubmit) {
+            this._origQueueSubmit.proto.submit = this._origQueueSubmit.original;
+            this._origQueueSubmit = null;
+        }
+
+        this._lateDetectionInstalled = false;
+    }
+
+    /**
+     * Actively probe for a WebGPU device by scanning DOM canvases.
+     * Called from captureNextFrame() and from queue/context hooks.
+     *
+     * Checks the _contextToDevice WeakMap for any canvas with a
+     * WebGPU context that was configured (and therefore mapped to a device).
+     */
+    private _probeForDevice(): void {
+        if (this._device) return;
+        if (typeof document === 'undefined') return;
+
+        try {
+            const canvases = document.querySelectorAll('canvas');
+            for (let i = 0; i < canvases.length; i++) {
+                const canvas = canvases[i];
+                // Skip trivially small canvases (1×1 placeholders etc.)
+                if (canvas.width <= 1 || canvas.height <= 1) continue;
+
+                try {
+                    // getContext('webgpu') returns the existing context if
+                    // the canvas was already configured for WebGPU, or null.
+                    const ctx = canvas.getContext('webgpu') as unknown as GPUCanvasContext | null;
+                    if (!ctx) continue;
+
+                    const device = this._contextToDevice.get(ctx);
+                    if (device) {
+                        this._discoverDevice(device);
+                        return;
+                    }
+                } catch {
+                    // getContext may throw for cross-origin canvases or
+                    // if the context type conflicts. Ignore and continue.
+                }
+            }
+        } catch {
+            // Silent — probe is best-effort.
+        }
     }
 
     /**
@@ -309,7 +494,23 @@ export class SpectorGPU {
             this.onWebGPUDetected.trigger(info);
         });
 
-        // Device created → spy on its queue
+        // PRIMARY device discovery: GpuSpy wraps requestDevice inline
+        // inside the requestAdapter return chain. This fires BEFORE
+        // the caller's await/then sees the device, so the device is
+        // guaranteed to be intercepted even when Chrome puts methods
+        // as own properties on instances (making prototype patches
+        // ineffective). DeviceSpy.spyOnDevice is idempotent (WeakSet)
+        // so the secondary path below is a harmless no-op.
+        this._gpuSpy.onDeviceCreated.add((device) => {
+            this._device = device;
+            this._deviceSpy.spyOnDevice(device);
+            this._queueSpy.spyOnQueue(device.queue);
+        });
+
+        // SECONDARY device discovery: DeviceSpy's own onDeviceCreated
+        // (fired from spyOnAdapter's patchMethod afterResolve or from
+        // installPrototypeSpy). Kept as fallback for late-detected
+        // devices. spyOnDevice is idempotent — double-fire is a no-op.
         this._deviceSpy.onDeviceCreated.add((device) => {
             this._device = device;
             this._queueSpy.spyOnQueue(device.queue);
