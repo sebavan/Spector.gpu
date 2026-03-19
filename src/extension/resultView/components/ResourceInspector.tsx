@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import type { ICapture, IResourceMap, ITextureInfo } from '@shared/types';
+import type { ICapture, ICommandNode, IResourceMap, IShaderModuleInfo, ITextureInfo } from '@shared/types';
 import { resolveMapToRecord } from '../resourceMapHelpers';
+import { highlightWGSL } from './wgslHighlighter';
 import { JsonTree } from './JsonTree';
 import type { NavigationTarget } from './NavigationContext';
 
@@ -83,11 +84,10 @@ export function ResourceInspector({ capture, navTarget }: { capture: ICapture; n
                     )}
                 </div>
                 <div className="resource-detail">
-                    {selectedCategory === 'textures' && selectedResource ? (
-                        <>
-                            <TextureThumbnail texture={selectedResource as ITextureInfo} />
-                            <JsonTree data={selectedResource} />
-                        </>
+                    {selectedCategory === 'shaderModules' && selectedResource ? (
+                        <ShaderModuleDetail module={selectedResource as IShaderModuleInfo} />
+                    ) : selectedCategory === 'textures' && selectedResource ? (
+                        <TextureThumbnail texture={selectedResource as ITextureInfo} capture={capture} />
                     ) : selectedResource ? (
                         <JsonTree data={selectedResource} />
                     ) : (
@@ -99,12 +99,98 @@ export function ResourceInspector({ capture, navTarget }: { capture: ICapture; n
     );
 }
 
-function TextureThumbnail({ texture }: { texture: ITextureInfo }) {
+// ── Shader module detail with syntax-highlighted WGSL ─────────────────
+
+function ShaderModuleDetail({ module }: { module: IShaderModuleInfo }) {
+    const code = module.code || '';
+    const highlighted = highlightWGSL(code);
+    const lines = code.split('\n');
+
+    return (
+        <div className="shader-module-detail">
+            <div className="shader-module-header">
+                <h4>{module.label || module.id}</h4>
+                <span className="shader-module-meta">{lines.length} lines</span>
+                <button
+                    className="copy-btn"
+                    onClick={() => { navigator.clipboard?.writeText(code).catch(() => {}); }}
+                >
+                    Copy
+                </button>
+            </div>
+            <div className="shader-code-container">
+                <div className="line-numbers">
+                    {lines.map((_, i) => (
+                        <div key={i} className="line-number">{i + 1}</div>
+                    ))}
+                </div>
+                <pre
+                    className="shader-code highlighted"
+                    dangerouslySetInnerHTML={{ __html: highlighted }}
+                />
+            </div>
+            {module.compilationInfo && module.compilationInfo.length > 0 && (
+                <div className="compilation-info">
+                    <h4>Compilation Messages</h4>
+                    {module.compilationInfo.map((msg, i) => (
+                        <div key={i} className={`comp-msg comp-msg-${msg.type}`}>
+                            <span className="comp-type">{msg.type}</span>
+                            <span className="comp-line">Line {msg.lineNum}:{msg.linePos}</span>
+                            <span className="comp-text">{msg.message}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Walk command tree to find the first visual output (canvas screenshot) ──
+
+function findVisualOutput(nodes: readonly ICommandNode[]): string | null {
+    for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i];
+        if (n.visualOutput) return n.visualOutput;
+        if (n.children.length > 0) {
+            const found = findVisualOutput(n.children);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+
+// ── Texture thumbnail with rich metadata ──────────────────────────────
+
+function TextureThumbnail({ texture, capture }: { texture: ITextureInfo; capture: ICapture }) {
     const width = texture.size?.width ?? 0;
     const height = texture.size?.height ?? 0;
     const format = texture.format ?? 'unknown';
+    const dimension = texture.dimension ?? '2d';
+    const mipLevels = texture.mipLevelCount ?? 1;
+    const sampleCount = texture.sampleCount ?? 1;
+    const usage = texture.usage ?? 0;
 
-    // Pick a background color based on texture format.
+    // Decode GPUTextureUsageFlags bitmask
+    const usageFlags: string[] = [];
+    if (usage & 0x01) usageFlags.push('COPY_SRC');
+    if (usage & 0x02) usageFlags.push('COPY_DST');
+    if (usage & 0x04) usageFlags.push('TEXTURE_BINDING');
+    if (usage & 0x08) usageFlags.push('STORAGE_BINDING');
+    if (usage & 0x10) usageFlags.push('RENDER_ATTACHMENT');
+
+    // Canvas/swapchain textures: RENDER_ATTACHMENT + common swapchain format
+    const isLikelyCanvas = !!(usage & 0x10) &&
+        (format.includes('bgra8') || format.includes('rgba8'));
+
+    // Use the capture's visual output as a proxy preview for canvas textures
+    let previewUrl: string | null = null;
+    if (texture.previewDataUrl) {
+        previewUrl = texture.previewDataUrl;
+    } else if (isLikelyCanvas) {
+        previewUrl = findVisualOutput(capture.commands);
+    }
+
+    // Pick a background color based on texture format
     const bgColor = format.includes('depth')
         ? '#4a3060'
         : format.includes('stencil')
@@ -113,34 +199,49 @@ function TextureThumbnail({ texture }: { texture: ITextureInfo }) {
                 ? '#2a4a2a'
                 : '#2a3a5a';
 
-    const MAX_DISPLAY_WIDTH = 200;
-    const scale = width > 0 ? Math.min(1, MAX_DISPLAY_WIDTH / width) : 1;
-    const displayWidth = Math.max(40, Math.round(width * scale));
-    const displayHeight = Math.max(30, Math.round(height * scale));
+    const MAX_DISPLAY = 200;
+    const scale = width > 0 ? Math.min(1, MAX_DISPLAY / width) : 1;
+    const displayW = Math.max(60, Math.round(width * scale));
+    const displayH = Math.max(45, Math.round(height * scale));
+
+    const depthOrLayers = texture.size?.depthOrArrayLayers ?? 1;
 
     return (
         <div className="texture-thumbnail-container">
-            {texture.previewDataUrl ? (
-                <img
-                    src={texture.previewDataUrl}
-                    alt="texture preview"
-                    className="texture-preview-img"
-                />
+            {previewUrl ? (
+                <img src={previewUrl} alt="texture preview" className="texture-preview-img" />
             ) : (
                 <div
                     className="texture-thumbnail"
-                    style={{
-                        width: displayWidth,
-                        height: displayHeight,
-                        backgroundColor: bgColor,
-                    }}
+                    style={{ width: displayW, height: displayH, backgroundColor: bgColor }}
                 >
-                    <span className="texture-dimensions">
-                        {width} × {height}
-                    </span>
+                    <span className="texture-dimensions">{width} × {height}</span>
                 </div>
             )}
-            <div className="texture-format">{format}</div>
+            <div className="texture-info-grid">
+                <span className="tex-label">Format:</span>
+                <span className="tex-value">{format}</span>
+                <span className="tex-label">Dimension:</span>
+                <span className="tex-value">{dimension}</span>
+                <span className="tex-label">Size:</span>
+                <span className="tex-value">
+                    {width} × {height}{depthOrLayers > 1 ? ` × ${depthOrLayers}` : ''}
+                </span>
+                {mipLevels > 1 && (
+                    <>
+                        <span className="tex-label">Mip Levels:</span>
+                        <span className="tex-value">{mipLevels}</span>
+                    </>
+                )}
+                {sampleCount > 1 && (
+                    <>
+                        <span className="tex-label">Samples:</span>
+                        <span className="tex-value">{sampleCount}×</span>
+                    </>
+                )}
+                <span className="tex-label">Usage:</span>
+                <span className="tex-value tex-usage">{usageFlags.join(' | ') || 'none'}</span>
+            </div>
         </div>
     );
 }

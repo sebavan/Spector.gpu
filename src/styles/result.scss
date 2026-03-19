@@ -653,6 +653,108 @@ $gutter-width: 48px;
     }
 }
 
+// ─── Texture info grid ───────────────────────────────────────────────
+
+.texture-info-grid {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 4px 8px;
+    margin-top: 8px;
+    font-size: 12px;
+
+    .tex-label { color: $text-muted; }
+    .tex-value { color: $text-primary; font-family: 'Cascadia Code', 'Consolas', monospace; }
+    .tex-usage {
+        font-size: 11px;
+        color: $accent;
+    }
+}
+
+// ─── Shader module detail in resource inspector ──────────────────────
+
+.shader-module-detail {
+    .shader-module-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+
+        h4 { margin: 0; color: $accent; font-size: 14px; }
+        .shader-module-meta { color: $text-muted; font-size: 12px; }
+        .copy-btn {
+            margin-left: auto;
+            padding: 4px 10px;
+            background: $bg-tertiary;
+            border: 1px solid $border;
+            border-radius: 4px;
+            color: $text-secondary;
+            cursor: pointer;
+            font-size: 11px;
+            &:hover { background: $bg-hover; color: $text-primary; }
+        }
+    }
+
+    .shader-code-container {
+        display: flex;
+        background: $bg-tertiary;
+        border: 1px solid $border;
+        border-radius: 6px;
+        overflow: auto;
+        max-height: 500px;
+
+        .line-numbers {
+            padding: 12px 8px;
+            text-align: right;
+            color: $text-muted;
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            user-select: none;
+            border-right: 1px solid $border;
+            flex-shrink: 0;
+            min-width: 36px;
+
+            .line-number { padding-right: 4px; }
+        }
+
+        .shader-code.highlighted {
+            padding: 12px;
+            margin: 0;
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            white-space: pre;
+            tab-size: 4;
+            flex: 1;
+        }
+    }
+
+    // WGSL syntax highlighting (mirrors .shader-editor classes)
+    .wgsl-keyword     { color: #c586c0; }
+    .wgsl-type        { color: #4ec9b0; }
+    .wgsl-decorator   { color: #dcdcaa; }
+    .wgsl-builtin     { color: #dcdcaa; }
+    .wgsl-function    { color: #dcdcaa; }
+    .wgsl-number      { color: #b5cea8; }
+    .wgsl-string      { color: #ce9178; }
+    .wgsl-comment     { color: #6a9955; font-style: italic; }
+    .wgsl-punctuation { color: #808080; }
+
+    .compilation-info {
+        margin-top: 12px;
+        h4 { font-size: 12px; color: $text-muted; text-transform: uppercase; margin-bottom: 8px; }
+        .comp-msg {
+            display: flex; gap: 8px; padding: 4px 8px; font-size: 12px; font-family: monospace;
+            border-radius: 3px; margin-bottom: 2px;
+            &.comp-msg-error   { background: rgba(#f44336, 0.15); color: #ef9a9a; }
+            &.comp-msg-warning { background: rgba(#ff9800, 0.15); color: #ffcc80; }
+            &.comp-msg-info    { background: rgba(#2196f3, 0.15); color: #90caf9; }
+        }
+        .comp-type { font-weight: 700; min-width: 60px; }
+        .comp-line { color: $text-muted; min-width: 80px; }
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────
 
 .loading,
