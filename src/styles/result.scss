@@ -571,6 +571,27 @@ $gutter-width: 48px;
 .json-bracket  { color: $text-muted; margin-left: 4px; }
 .json-children { border-left: 1px solid $border; margin-left: 6px; }
 
+// ─── Resource cross-links ────────────────────────────────────────────
+
+.resource-link {
+    color: $accent;
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+
+    &:hover {
+        color: adjust-color($accent, $lightness: 15%);
+        text-decoration-style: solid;
+    }
+}
+
+.resource-id-plain {
+    color: $text-secondary;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+}
+
 // ─── Utility states ─────────────────────────────────────────────────
 
 // ─── Visual output thumbnails ────────────────────────────────────────

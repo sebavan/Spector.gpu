@@ -7,6 +7,7 @@ import { ShaderEditor } from './ShaderEditor';
 import { PipelineInspector } from './PipelineInspector';
 import { ResourceInspector } from './ResourceInspector';
 import { CaptureHeader } from './CaptureHeader';
+import { NavigationContext, type NavigationTarget } from './NavigationContext';
 
 type DetailTab = 'detail' | 'shader' | 'pipeline' | 'resources';
 
@@ -16,6 +17,12 @@ export function ResultApp() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<DetailTab>('detail');
+    const [resourceNavTarget, setResourceNavTarget] = useState<NavigationTarget | null>(null);
+
+    const navigateToResource = useCallback((target: NavigationTarget) => {
+        setActiveTab('resources');
+        setResourceNavTarget(target);
+    }, []);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -59,32 +66,34 @@ export function ResultApp() {
     }
 
     return (
-        <div className="result-app">
-            <CaptureHeader capture={capture} />
-            <div className="result-content">
-                <div className="left-panel">
-                    <CommandTree
-                        commands={capture.commands}
-                        selectedId={selectedNode?.id ?? null}
-                        onSelect={handleSelect}
-                    />
-                </div>
-                <div className="right-panel">
-                    <div className="tab-bar">
-                        <TabButton label="Details"   tab="detail"    active={activeTab} onClick={setActiveTab} />
-                        <TabButton label="Shaders"   tab="shader"    active={activeTab} onClick={setActiveTab} />
-                        <TabButton label="Pipeline"  tab="pipeline"  active={activeTab} onClick={setActiveTab} />
-                        <TabButton label="Resources" tab="resources" active={activeTab} onClick={setActiveTab} />
+        <NavigationContext.Provider value={navigateToResource}>
+            <div className="result-app">
+                <CaptureHeader capture={capture} />
+                <div className="result-content">
+                    <div className="left-panel">
+                        <CommandTree
+                            commands={capture.commands}
+                            selectedId={selectedNode?.id ?? null}
+                            onSelect={handleSelect}
+                        />
                     </div>
-                    <div className="tab-content">
-                        {activeTab === 'detail'    && <CommandDetail node={selectedNode} capture={capture} />}
-                        {activeTab === 'shader'    && <ShaderEditor node={selectedNode} capture={capture} />}
-                        {activeTab === 'pipeline'  && <PipelineInspector node={selectedNode} capture={capture} />}
-                        {activeTab === 'resources' && <ResourceInspector capture={capture} />}
+                    <div className="right-panel">
+                        <div className="tab-bar">
+                            <TabButton label="Details"   tab="detail"    active={activeTab} onClick={setActiveTab} />
+                            <TabButton label="Shaders"   tab="shader"    active={activeTab} onClick={setActiveTab} />
+                            <TabButton label="Pipeline"  tab="pipeline"  active={activeTab} onClick={setActiveTab} />
+                            <TabButton label="Resources" tab="resources" active={activeTab} onClick={setActiveTab} />
+                        </div>
+                        <div className="tab-content">
+                            {activeTab === 'detail'    && <CommandDetail node={selectedNode} capture={capture} />}
+                            {activeTab === 'shader'    && <ShaderEditor node={selectedNode} capture={capture} />}
+                            {activeTab === 'pipeline'  && <PipelineInspector node={selectedNode} capture={capture} />}
+                            {activeTab === 'resources' && <ResourceInspector capture={capture} navTarget={resourceNavTarget} />}
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </NavigationContext.Provider>
     );
 }
 

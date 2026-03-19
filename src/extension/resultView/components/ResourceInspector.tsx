@@ -1,7 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import type { ICapture, IResourceMap, ITextureInfo } from '@shared/types';
 import { resolveMapToRecord } from '../resourceMapHelpers';
 import { JsonTree } from './JsonTree';
+import type { NavigationTarget } from './NavigationContext';
 
 /** All resource categories present in IResourceMap. */
 type ResourceCategory = keyof IResourceMap;
@@ -18,9 +19,16 @@ const CATEGORIES: readonly { key: ResourceCategory; label: string }[] = [
     { key: 'bindGroupLayouts', label: 'Bind Group Layouts' },
 ];
 
-export function ResourceInspector({ capture }: { capture: ICapture }) {
+export function ResourceInspector({ capture, navTarget }: { capture: ICapture; navTarget?: NavigationTarget | null }) {
     const [selectedCategory, setSelectedCategory] = useState<ResourceCategory>('buffers');
     const [selectedId, setSelectedId] = useState<string | null>(null);
+
+    // When an external navigation target arrives, switch category + select item.
+    useEffect(() => {
+        if (!navTarget) return;
+        setSelectedCategory(navTarget.category as ResourceCategory);
+        setSelectedId(navTarget.id);
+    }, [navTarget]);
 
     const { resources } = capture;
 

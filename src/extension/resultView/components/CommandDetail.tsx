@@ -1,6 +1,7 @@
 import React from 'react';
 import type { ICommandNode, ICapture } from '@shared/types';
 import { JsonTree } from './JsonTree';
+import { ResourceLink } from './ResourceLink';
 
 export function CommandDetail({ node, capture: _capture }: { node: ICommandNode | null; capture: ICapture }) {
     if (!node) {
@@ -46,12 +47,19 @@ export function CommandDetail({ node, capture: _capture }: { node: ICommandNode 
                     <h4>GPU State</h4>
                     <div className="detail-grid">
                         <span className="detail-label">Pipeline:</span>
-                        <span className="detail-value">{node.pipelineId}</span>
+                        <span className="detail-value"><ResourceLink id={node.pipelineId!} /></span>
                         {node.bindGroups != null && (
                             <>
                                 <span className="detail-label">Bind Groups:</span>
                                 <span className="detail-value">
-                                    {node.bindGroups.length > 0 ? node.bindGroups.join(', ') : 'none'}
+                                    {node.bindGroups.length > 0
+                                        ? node.bindGroups.map((bg, i) => (
+                                            <React.Fragment key={bg}>
+                                                {i > 0 && ', '}
+                                                <ResourceLink id={bg} />
+                                            </React.Fragment>
+                                        ))
+                                        : 'none'}
                                 </span>
                             </>
                         )}
@@ -59,14 +67,21 @@ export function CommandDetail({ node, capture: _capture }: { node: ICommandNode 
                             <>
                                 <span className="detail-label">Vertex Buffers:</span>
                                 <span className="detail-value">
-                                    {node.vertexBuffers.length > 0 ? node.vertexBuffers.join(', ') : 'none'}
+                                    {node.vertexBuffers.length > 0
+                                        ? node.vertexBuffers.map((vb, i) => (
+                                            <React.Fragment key={vb}>
+                                                {i > 0 && ', '}
+                                                <ResourceLink id={vb} />
+                                            </React.Fragment>
+                                        ))
+                                        : 'none'}
                                 </span>
                             </>
                         )}
                         {node.indexBufferId != null && (
                             <>
                                 <span className="detail-label">Index Buffer:</span>
-                                <span className="detail-value">{node.indexBufferId}</span>
+                                <span className="detail-value"><ResourceLink id={node.indexBufferId} /></span>
                             </>
                         )}
                     </div>

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import type { ICommandNode, ICapture, IRenderPipelineInfo, IComputePipelineInfo } from '@shared/types';
 import { resolveMapEntry } from '../resourceMapHelpers';
 import { JsonTree } from './JsonTree';
+import { ResourceLink } from './ResourceLink';
 
 export function PipelineInspector({ node, capture }: { node: ICommandNode | null; capture: ICapture }) {
     const pipeline = useMemo((): IRenderPipelineInfo | IComputePipelineInfo | null => {
@@ -22,31 +23,39 @@ export function PipelineInspector({ node, capture }: { node: ICommandNode | null
 
     const isRender = 'vertex' in pipeline;
 
+    const rp = pipeline as IRenderPipelineInfo;
+    const cpipe = pipeline as IComputePipelineInfo;
+
     return (
         <div className="pipeline-inspector">
             <h3>Pipeline: {pipeline.label ?? pipeline.id}</h3>
             <div className="pipeline-sections">
                 {isRender && (
                     <>
-                        <PipelineSection title="Vertex Stage" data={(pipeline as IRenderPipelineInfo).vertex} />
-                        {(pipeline as IRenderPipelineInfo).fragment && (
-                            <PipelineSection title="Fragment Stage" data={(pipeline as IRenderPipelineInfo).fragment} />
+                        <PipelineStageSection title="Vertex Stage" moduleId={rp.vertex.moduleId} data={rp.vertex} />
+                        {rp.fragment && (
+                            <PipelineStageSection title="Fragment Stage" moduleId={rp.fragment.moduleId} data={rp.fragment} />
                         )}
-                        {(pipeline as IRenderPipelineInfo).primitive && (
-                            <PipelineSection title="Primitive" data={(pipeline as IRenderPipelineInfo).primitive} />
+                        {rp.primitive && (
+                            <PipelineSection title="Primitive" data={rp.primitive} />
                         )}
-                        {(pipeline as IRenderPipelineInfo).depthStencil && (
-                            <PipelineSection title="Depth/Stencil" data={(pipeline as IRenderPipelineInfo).depthStencil} />
+                        {rp.depthStencil && (
+                            <PipelineSection title="Depth/Stencil" data={rp.depthStencil} />
                         )}
-                        {(pipeline as IRenderPipelineInfo).multisample && (
-                            <PipelineSection title="Multisample" data={(pipeline as IRenderPipelineInfo).multisample} />
+                        {rp.multisample && (
+                            <PipelineSection title="Multisample" data={rp.multisample} />
                         )}
                     </>
                 )}
                 {!isRender && (
-                    <PipelineSection title="Compute Stage" data={(pipeline as IComputePipelineInfo).compute} />
+                    <PipelineStageSection title="Compute Stage" moduleId={cpipe.compute.moduleId} data={cpipe.compute} />
                 )}
-                <PipelineSection title="Layout" data={{ layout: pipeline.layout }} />
+                <div className="pipeline-section">
+                    <h4>Layout</h4>
+                    <div style={{ marginLeft: 16, fontFamily: "'Cascadia Code', 'Consolas', monospace", fontSize: 12 }}>
+                        <ResourceLink id={pipeline.layout} />
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -56,6 +65,19 @@ function PipelineSection({ title, data }: { title: string; data: unknown }) {
     return (
         <div className="pipeline-section">
             <h4>{title}</h4>
+            <JsonTree data={data} />
+        </div>
+    );
+}
+
+/**
+ * Pipeline stage section that displays the module ID as a clickable link
+ * above the full stage data rendered via JsonTree.
+ */
+function PipelineStageSection({ title, moduleId, data }: { title: string; moduleId: string; data: unknown }) {
+    return (
+        <div className="pipeline-section">
+            <h4>{title} — <ResourceLink id={moduleId} /></h4>
             <JsonTree data={data} />
         </div>
     );

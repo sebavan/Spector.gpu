@@ -2,6 +2,7 @@ import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react'
 import type { ICommandNode, ICapture, IShaderModuleInfo, IRenderPipelineInfo, IComputePipelineInfo } from '@shared/types';
 import { resolveMapEntry } from '../resourceMapHelpers';
 import { highlightWGSL } from './wgslHighlighter';
+import { ResourceLink } from './ResourceLink';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -157,7 +158,7 @@ function ShaderPane({ shader }: ShaderPaneProps) {
     return (
         <div className="shader-section">
             <h4>
-                {shader.label}
+                {shader.label} (<ResourceLink id={shader.moduleId} />)
                 {modified && <span className="modified-indicator" title="Modified"> •</span>}
             </h4>
 

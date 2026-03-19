@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { maybeResourceLink } from './ResourceLink';
 
 interface JsonTreeProps {
     data: unknown;
@@ -19,7 +20,18 @@ export function JsonTree({ data, depth = 0, label }: JsonTreeProps) {
     if (data === undefined) return <JsonLeaf label={label} value="undefined" className="json-undefined" />;
     if (typeof data === 'boolean') return <JsonLeaf label={label} value={String(data)} className="json-boolean" />;
     if (typeof data === 'number') return <JsonLeaf label={label} value={String(data)} className="json-number" />;
-    if (typeof data === 'string') return <JsonLeaf label={label} value={`"${data}"`} className="json-string" />;
+    if (typeof data === 'string') {
+        const link = maybeResourceLink(data);
+        if (link) {
+            return (
+                <div className="json-leaf" style={{ marginLeft: 16 }}>
+                    {label != null && <span className="json-key">{label}: </span>}
+                    {link}
+                </div>
+            );
+        }
+        return <JsonLeaf label={label} value={`"${data}"`} className="json-string" />;
+    }
 
     if (Array.isArray(data)) {
         if (data.length === 0) return <JsonLeaf label={label} value="[]" className="json-array" />;
