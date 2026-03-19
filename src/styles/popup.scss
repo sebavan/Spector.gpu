@@ -1,0 +1,172 @@
+// ─── Design tokens ───────────────────────────────────────────────────
+$bg-primary: #1e1e2e;
+$bg-secondary: #252536;
+$bg-hover: #353550;
+$text-primary: #e0e0e0;
+$text-secondary: #a0a0b8;
+$text-muted: #707088;
+$accent: #4fc3f7;
+$accent-dark: #2196f3;
+$success: #4caf50;
+$border: #3a3a50;
+
+// ─── Reset ───────────────────────────────────────────────────────────
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    background: $bg-primary;
+    color: $text-primary;
+    width: 320px;
+    min-height: 200px;
+}
+
+// ─── Layout ──────────────────────────────────────────────────────────
+.popup {
+    display: flex;
+    flex-direction: column;
+}
+
+.popup-header {
+    padding: 16px;
+    background: $bg-secondary;
+    border-bottom: 1px solid $border;
+
+    .logo {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        .logo-icon {
+            color: $accent;
+            font-size: 20px;
+        }
+
+        .logo-text {
+            font-size: 16px;
+            font-weight: 700;
+            color: $text-primary;
+        }
+    }
+}
+
+.popup-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+// ─── Status indicator ────────────────────────────────────────────────
+.status-section {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: $bg-secondary;
+
+    .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    &.detected {
+        .status-dot {
+            background: $success;
+            box-shadow: 0 0 6px rgba($success, 0.5);
+        }
+
+        .status-text {
+            color: $success;
+            font-weight: 600;
+        }
+    }
+
+    &.not-detected {
+        .status-dot {
+            background: $text-muted;
+        }
+
+        .status-text {
+            color: $text-muted;
+        }
+    }
+}
+
+// ─── Adapter info ────────────────────────────────────────────────────
+.info-section {
+    background: $bg-secondary;
+    border-radius: 8px;
+    padding: 10px 12px;
+
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 3px 0;
+        font-size: 12px;
+
+        .info-label {
+            color: $text-muted;
+        }
+
+        .info-value {
+            color: $text-primary;
+            font-family: monospace;
+        }
+    }
+}
+
+// ─── Capture button ──────────────────────────────────────────────────
+.capture-btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: $accent-dark;
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+
+    &:hover:not(:disabled) {
+        background: $accent;
+    }
+
+    &:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+}
+
+// ─── Hint text ───────────────────────────────────────────────────────
+.hint {
+    font-size: 11px;
+    color: $text-muted;
+    text-align: center;
+    line-height: 1.5;
+    padding: 4px;
+}
+
+// ─── Footer ──────────────────────────────────────────────────────────
+.popup-footer {
+    padding: 8px 16px;
+    text-align: center;
+    font-size: 10px;
+    color: $text-muted;
+    border-top: 1px solid $border;
+}
+
+// ─── Loading state ───────────────────────────────────────────────────
+.popup-loading {
+    text-align: center;
+    padding: 40px;
+    color: $text-secondary;
+}
