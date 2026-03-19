@@ -526,6 +526,10 @@ $gutter-width: 48px;
         padding: 6px 10px;
         cursor: pointer;
         border-bottom: 1px solid $border;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: wrap;
 
         &:hover { background: $bg-hover; }
         &.selected { background: $bg-selected; }
@@ -533,12 +537,21 @@ $gutter-width: 48px;
         .resource-id {
             font-family: 'Cascadia Code', 'Consolas', monospace;
             font-size: 11px;
-            display: block;
         }
 
         .resource-label {
             font-size: 11px;
             color: $text-muted;
+        }
+
+        .shader-stage-badge.small {
+            font-size: 8px;
+            font-weight: 700;
+            padding: 1px 4px;
+            border-radius: 2px;
+            &.stage-vertex   { background: rgba($color-renderpass, 0.2); color: $color-renderpass; }
+            &.stage-fragment { background: rgba($color-draw, 0.2); color: $color-draw; }
+            &.stage-compute  { background: rgba($color-computepass, 0.2); color: $color-computepass; }
         }
     }
 }
@@ -681,6 +694,16 @@ $gutter-width: 48px;
 
         h4 { margin: 0; color: $accent; font-size: 14px; }
         .shader-module-meta { color: $text-muted; font-size: 12px; }
+        .shader-stage-badge {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 3px;
+            text-transform: uppercase;
+            &.stage-vertex   { background: rgba($color-renderpass, 0.2); color: $color-renderpass; }
+            &.stage-fragment { background: rgba($color-draw, 0.2); color: $color-draw; }
+            &.stage-compute  { background: rgba($color-computepass, 0.2); color: $color-computepass; }
+        }
         .copy-btn {
             margin-left: auto;
             padding: 4px 10px;

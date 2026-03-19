@@ -67,7 +67,9 @@ export function ResourceInspector({ capture, navTarget }: { capture: ICapture; n
             <div className="resource-content">
                 <div className="resource-list">
                     {resourceIds.map(id => {
-                        const res = currentResources[id] as { label?: string } | undefined;
+                        const res = currentResources[id] as { label?: string; code?: string } | undefined;
+                        const shaderStages = selectedCategory === 'shaderModules' && res?.code
+                            ? detectShaderStages(res.code) : [];
                         return (
                             <div
                                 key={id}
@@ -75,6 +77,9 @@ export function ResourceInspector({ capture, navTarget }: { capture: ICapture; n
                                 onClick={() => setSelectedId(id)}
                             >
                                 <span className="resource-id">{id}</span>
+                                {shaderStages.map(s => (
+                                    <span key={s} className={`shader-stage-badge stage-${s} small`}>{s[0].toUpperCase()}</span>
+                                ))}
                                 {res?.label && <span className="resource-label">{res.label}</span>}
                             </div>
                         );
@@ -105,11 +110,15 @@ function ShaderModuleDetail({ module }: { module: IShaderModuleInfo }) {
     const code = module.code || '';
     const highlighted = highlightWGSL(code);
     const lines = code.split('\n');
+    const stages = detectShaderStages(code);
 
     return (
         <div className="shader-module-detail">
             <div className="shader-module-header">
                 <h4>{module.label || module.id}</h4>
+                {stages.map(s => (
+                    <span key={s} className={`shader-stage-badge stage-${s}`}>{s}</span>
+                ))}
                 <span className="shader-module-meta">{lines.length} lines</span>
                 <button
                     className="copy-btn"
@@ -143,6 +152,18 @@ function ShaderModuleDetail({ module }: { module: IShaderModuleInfo }) {
             )}
         </div>
     );
+}
+
+// ── Detect shader stages from WGSL source ─────────────────────────────
+
+type ShaderStage = 'vertex' | 'fragment' | 'compute';
+
+function detectShaderStages(code: string): ShaderStage[] {
+    const stages: ShaderStage[] = [];
+    if (/@vertex\b/.test(code)) stages.push('vertex');
+    if (/@fragment\b/.test(code)) stages.push('fragment');
+    if (/@compute\b/.test(code)) stages.push('compute');
+    return stages;
 }
 
 // ── Walk command tree to find the first visual output (canvas screenshot) ──
