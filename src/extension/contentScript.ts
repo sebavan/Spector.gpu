@@ -81,17 +81,6 @@ function init(): void {
         switch (type) {
             case MessageType.START_CAPTURE:
                 spectorGpu?.captureNextFrame();
-                // Auto-finalize after one frame boundary (2 rAFs).
-                // stopCapture() is idempotent — safe if already stopped.
-                if (typeof requestAnimationFrame !== 'undefined') {
-                    requestAnimationFrame(() => {
-                        requestAnimationFrame(() => {
-                            if (spectorGpu?.isCapturing) {
-                                spectorGpu.stopCapture();
-                            }
-                        });
-                    });
-                }
                 break;
 
             case MessageType.STOP_CAPTURE:

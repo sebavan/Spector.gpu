@@ -645,9 +645,16 @@ export class SpectorGPU {
 
                 // Capture screenshot NOW — content is still in the back buffer
                 // before the browser composites at end of frame task.
-                // WebGPU canvases clear their back buffer after presentation,
-                // so capturing in _buildCapture() (after 2 rAFs) yields blank images.
                 this._pendingScreenshot = this._captureCanvasScreenshot();
+
+                // Auto-stop after the first submit — captures exactly one frame.
+                // Use microtask to ensure all commands from this submit are fully
+                // recorded before we finalize.
+                Promise.resolve().then(() => {
+                    if (this._isCapturing) {
+                        this.stopCapture();
+                    }
+                });
             }
         });
     }
