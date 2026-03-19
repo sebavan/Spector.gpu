@@ -31,13 +31,15 @@
             "matches": ["http://*/*", "https://*/*", "file://*/*"],
             "js": ["contentScriptProxy.js"],
             "run_at": "document_start",
-            "world": "ISOLATED"
+            "world": "ISOLATED",
+            "all_frames": true
         },
         {
             "matches": ["http://*/*", "https://*/*", "file://*/*"],
             "js": ["contentScript.js"],
             "run_at": "document_start",
-            "world": "MAIN"
+            "world": "MAIN",
+            "all_frames": true
         }
     ],
     "icons": {

@@ -104,6 +104,10 @@ export class SpectorGPU {
     private _captureTimeoutId: ReturnType<typeof setTimeout> | null = null;
     private _commandTree: CommandTreeBuilder | null = null;
 
+    // Late-detection prototype patching state.
+    private _devicePrototypePatched = false;
+    private _originalCreateCommandEncoder: Function | null = null;
+
     // Subsystems — allocated once, reused across captures.
     private readonly _recorderManager = new RecorderManager();
     private readonly _gpuSpy = new GpuSpy();
@@ -151,6 +155,7 @@ export class SpectorGPU {
         this._wireSpies();
         this._gpuSpy.install();          // patches GPU.prototype.requestAdapter
         this._deviceSpy.installPrototypeSpy(); // patches GPUAdapter.prototype.requestDevice
+        this._installDevicePrototypeSpy(); // patches GPUDevice.prototype.createCommandEncoder for late detection
         this._canvasSpy.install();
         Logger.info('SpectorGPU initialized (passive mode)');
     }
@@ -204,6 +209,17 @@ export class SpectorGPU {
     /** Tear down all spies and release resources. Safe to call multiple times. */
     public dispose(): void {
         this._clearCaptureState();
+
+        // Restore GPUDevice prototype if patched.
+        if (this._devicePrototypePatched && this._originalCreateCommandEncoder) {
+            const proto: any = typeof GPUDevice !== 'undefined' ? GPUDevice.prototype : null;
+            if (proto) {
+                proto.createCommandEncoder = this._originalCreateCommandEncoder;
+            }
+            this._devicePrototypePatched = false;
+            this._originalCreateCommandEncoder = null;
+        }
+
         this._gpuSpy.dispose();
         this._deviceSpy.dispose();
         this._queueSpy.dispose();
@@ -217,6 +233,63 @@ export class SpectorGPU {
         this._adapterInfo = null;
         this._device = null;
         this._initialized = false;
+    }
+
+    // ── Late-detection: GPUDevice prototype spy ────────────────────────
+
+    /**
+     * Patch GPUDevice.prototype.createCommandEncoder so that even if
+     * a device was created before our spy, the first createCommandEncoder
+     * call (which happens every frame) triggers device discovery.
+     *
+     * No-op if GPUDevice is not in scope (e.g. jsdom unit tests).
+     * Idempotent — safe to call multiple times.
+     */
+    private _installDevicePrototypeSpy(): void {
+        if (this._devicePrototypePatched) return;
+
+        let proto: any = null;
+        if (typeof GPUDevice !== 'undefined') {
+            proto = GPUDevice.prototype;
+        }
+        if (!proto || typeof proto.createCommandEncoder !== 'function') return;
+
+        const self = this;
+        this._originalCreateCommandEncoder = proto.createCommandEncoder;
+        const original = this._originalCreateCommandEncoder!;
+
+        proto.createCommandEncoder = function (this: GPUDevice, ...args: any[]) {
+            // 'this' is the GPUDevice instance — discover and patch it.
+            self._discoverDevice(this);
+            return original.apply(this, args);
+        };
+
+        this._devicePrototypePatched = true;
+    }
+
+    /**
+     * Called when we discover a device that wasn't created through our spy.
+     * Patches it and its queue for interception.
+     *
+     * DeviceSpy.spyOnDevice and QueueSpy.spyOnQueue are both idempotent
+     * (WeakSet guard) — safe to call on already-patched devices.
+     */
+    private _discoverDevice(device: GPUDevice): void {
+        this._deviceSpy.spyOnDevice(device);
+        this._queueSpy.spyOnQueue(device.queue);
+        this._device = device;
+
+        // If we don't have adapter info yet, emit a synthetic detection event.
+        if (!this._adapterInfo) {
+            this._adapterInfo = {
+                vendor: '',
+                architecture: '',
+                device: '',
+                description: 'Late-detected device',
+                backend: '',
+            };
+            this.onWebGPUDetected.trigger(this._adapterInfo);
+        }
     }
 
     // ── Spy wiring (called once from init) ───────────────────────────
