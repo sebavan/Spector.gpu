@@ -382,16 +382,64 @@ export class SpectorGPU {
 
         this._queueSpy.onSubmit.add(({ commandBuffers }) => {
             if (this._isCapturing && this._commandTree) {
-                this._commandTree.addCommand(
+                const submitNode = this._commandTree.addCommand(
                     CommandType.Submit,
                     'submit',
                     { commandBufferCount: commandBuffers.length },
                 );
+
+                // Best-effort canvas screenshot after submit.
+                const screenshot = this._captureCanvasScreenshot();
+                if (screenshot) {
+                    submitNode.setVisualOutput(screenshot);
+                    this._commandTree.setVisualOutputOnRecentPasses(screenshot);
+                }
             }
         });
     }
 
     // ── Capture internals ────────────────────────────────────────────
+
+    /**
+     * Capture a screenshot of any active canvas on the page.
+     * Uses a temporary offscreen canvas to scale down to at most 256px
+     * wide, keeping capture data small. Returns a PNG data URL.
+     *
+     * Best-effort: returns null if no suitable canvas is found or if
+     * any error occurs. Never throws.
+     */
+    private _captureCanvasScreenshot(): string | null {
+        try {
+            const canvases = document.querySelectorAll('canvas');
+            for (let i = 0; i < canvases.length; i++) {
+                const canvas = canvases[i];
+                if (canvas.width <= 0 || canvas.height <= 0) continue;
+
+                const MAX_WIDTH = 256;
+                const scale = Math.min(1, MAX_WIDTH / canvas.width);
+                const thumbWidth = Math.round(canvas.width * scale);
+                const thumbHeight = Math.round(canvas.height * scale);
+
+                const offscreen = document.createElement('canvas');
+                offscreen.width = thumbWidth;
+                offscreen.height = thumbHeight;
+                const ctx = offscreen.getContext('2d');
+                if (!ctx) continue;
+
+                ctx.drawImage(canvas, 0, 0, thumbWidth, thumbHeight);
+                const dataUrl = offscreen.toDataURL('image/png');
+
+                // Verify we got actual pixel data, not a blank canvas.
+                // A blank 1×1 PNG data URL is ~90 chars; anything real is larger.
+                if (dataUrl.length > 100) {
+                    return dataUrl;
+                }
+            }
+        } catch (_e) {
+            // Silent fail — screenshot is best-effort.
+        }
+        return null;
+    }
 
     /** Build the ICapture from current tree + resource state. */
     private _buildCapture(): ICapture {

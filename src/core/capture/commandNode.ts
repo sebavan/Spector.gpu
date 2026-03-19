@@ -20,6 +20,7 @@ export class CommandNodeBuilder {
     private _bindGroups?: string[];
     private _vertexBuffers?: string[];
     private _indexBufferId?: string;
+    private _visualOutput?: string;
 
     constructor(type: CommandType, name: string, args: Record<string, unknown> = {}) {
         this._id = globalIdGenerator.next('cmd');
@@ -46,6 +47,10 @@ export class CommandNodeBuilder {
         this._indexBufferId = state.indexBufferId;
     }
 
+    public setVisualOutput(dataUrl: string): void {
+        this._visualOutput = dataUrl;
+    }
+
     /**
      * Freeze this node into an immutable ICommandNode.
      * Children are recursively frozen. Arrays are copied to prevent
@@ -64,6 +69,7 @@ export class CommandNodeBuilder {
             bindGroups: this._bindGroups ? [...this._bindGroups] : undefined,
             vertexBuffers: this._vertexBuffers ? [...this._vertexBuffers] : undefined,
             indexBufferId: this._indexBufferId,
+            visualOutput: this._visualOutput,
         };
     }
 

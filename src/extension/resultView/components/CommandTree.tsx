@@ -68,6 +68,13 @@ function TreeNode({ node, depth, selectedId, onSelect }: {
                 {hasChildren && (
                     <span className="child-count">({node.children.length})</span>
                 )}
+                {node.visualOutput && (
+                    <img
+                        className="node-thumbnail"
+                        src={node.visualOutput}
+                        alt="visual output"
+                    />
+                )}
             </div>
             {expanded && hasChildren && (
                 <div className="tree-children">

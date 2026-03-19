@@ -573,6 +573,67 @@ $gutter-width: 48px;
 
 // ─── Utility states ─────────────────────────────────────────────────
 
+// ─── Visual output thumbnails ────────────────────────────────────────
+
+.node-thumbnail {
+    width: 32px;
+    height: 24px;
+    border-radius: 3px;
+    border: 1px solid $border;
+    object-fit: cover;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.visual-output {
+    background: $bg-tertiary;
+    border: 1px solid $border;
+    border-radius: 6px;
+    padding: 8px;
+    text-align: center;
+
+    img {
+        max-width: 100%;
+        max-height: 400px;
+        border-radius: 4px;
+        image-rendering: pixelated;
+    }
+}
+
+.texture-thumbnail-container {
+    margin-bottom: 12px;
+
+    .texture-thumbnail {
+        border: 1px solid $border;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 4px;
+
+        .texture-dimensions {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 11px;
+            font-family: 'Cascadia Code', 'Consolas', monospace;
+        }
+    }
+
+    .texture-format {
+        font-size: 11px;
+        color: $text-muted;
+        font-family: 'Cascadia Code', 'Consolas', monospace;
+    }
+
+    .texture-preview-img {
+        max-width: 200px;
+        border: 1px solid $border;
+        border-radius: 4px;
+        margin-bottom: 8px;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+
 .loading,
 .error {
     display: flex;

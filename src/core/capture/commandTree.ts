@@ -15,6 +15,7 @@ import { CommandType, ICommandNode, ICaptureStats } from '@shared/types';
 export class CommandTreeBuilder {
     private _roots: CommandNodeBuilder[] = [];
     private _scopeStack: CommandNodeBuilder[] = [];
+    private _recentRenderPasses: CommandNodeBuilder[] = [];
     private _totalCommands = 0;
     private _drawCalls = 0;
     private _dispatchCalls = 0;
@@ -31,6 +32,11 @@ export class CommandTreeBuilder {
 
         if (type === CommandType.RenderPass) this._renderPasses++;
         if (type === CommandType.ComputePass) this._computePasses++;
+
+        // Track render passes for visual output propagation.
+        if (type === CommandType.RenderPass) {
+            this._recentRenderPasses.push(node);
+        }
 
         const parent = this._currentScope;
         if (parent) {
@@ -89,6 +95,18 @@ export class CommandTreeBuilder {
     }
 
     /**
+     * Set visual output on all render pass nodes that haven't yet had
+     * a screenshot propagated to them. Called after queue.submit()
+     * captures a canvas screenshot.
+     */
+    public setVisualOutputOnRecentPasses(dataUrl: string): void {
+        for (let i = 0; i < this._recentRenderPasses.length; i++) {
+            this._recentRenderPasses[i].setVisualOutput(dataUrl);
+        }
+        this._recentRenderPasses = [];
+    }
+
+    /**
      * Get capture statistics.
      */
     public getStats(): Pick<ICaptureStats, 'totalCommands' | 'drawCalls' | 'dispatchCalls' | 'renderPasses' | 'computePasses'> {
@@ -107,6 +125,7 @@ export class CommandTreeBuilder {
     public reset(): void {
         this._roots = [];
         this._scopeStack = [];
+        this._recentRenderPasses = [];
         this._totalCommands = 0;
         this._drawCalls = 0;
         this._dispatchCalls = 0;

@@ -12,6 +12,16 @@ export function CommandDetail({ node, capture: _capture }: { node: ICommandNode 
     return (
         <div className="command-detail">
             <h3>{node.name}</h3>
+
+            {node.visualOutput && (
+                <div className="detail-section">
+                    <h4>Visual Output</h4>
+                    <div className="visual-output">
+                        <img src={node.visualOutput} alt="render output" />
+                    </div>
+                </div>
+            )}
+
             <div className="detail-section">
                 <h4>Info</h4>
                 <div className="detail-grid">

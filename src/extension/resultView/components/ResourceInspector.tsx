@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import type { ICapture, IResourceMap } from '@shared/types';
+import type { ICapture, IResourceMap, ITextureInfo } from '@shared/types';
 import { resolveMapToRecord } from '../resourceMapHelpers';
 import { JsonTree } from './JsonTree';
 
@@ -75,13 +75,64 @@ export function ResourceInspector({ capture }: { capture: ICapture }) {
                     )}
                 </div>
                 <div className="resource-detail">
-                    {selectedResource ? (
+                    {selectedCategory === 'textures' && selectedResource ? (
+                        <>
+                            <TextureThumbnail texture={selectedResource as ITextureInfo} />
+                            <JsonTree data={selectedResource} />
+                        </>
+                    ) : selectedResource ? (
                         <JsonTree data={selectedResource} />
                     ) : (
                         <div className="empty">Select a resource to view details</div>
                     )}
                 </div>
             </div>
+        </div>
+    );
+}
+
+function TextureThumbnail({ texture }: { texture: ITextureInfo }) {
+    const width = texture.size?.width ?? 0;
+    const height = texture.size?.height ?? 0;
+    const format = texture.format ?? 'unknown';
+
+    // Pick a background color based on texture format.
+    const bgColor = format.includes('depth')
+        ? '#4a3060'
+        : format.includes('stencil')
+            ? '#305060'
+            : format.includes('float')
+                ? '#2a4a2a'
+                : '#2a3a5a';
+
+    const MAX_DISPLAY_WIDTH = 200;
+    const scale = width > 0 ? Math.min(1, MAX_DISPLAY_WIDTH / width) : 1;
+    const displayWidth = Math.max(40, Math.round(width * scale));
+    const displayHeight = Math.max(30, Math.round(height * scale));
+
+    return (
+        <div className="texture-thumbnail-container">
+            {texture.previewDataUrl ? (
+                <img
+                    src={texture.previewDataUrl}
+                    alt="texture preview"
+                    className="texture-preview-img"
+                />
+            ) : (
+                <div
+                    className="texture-thumbnail"
+                    style={{
+                        width: displayWidth,
+                        height: displayHeight,
+                        backgroundColor: bgColor,
+                    }}
+                >
+                    <span className="texture-dimensions">
+                        {width} × {height}
+                    </span>
+                </div>
+            )}
+            <div className="texture-format">{format}</div>
         </div>
     );
 }

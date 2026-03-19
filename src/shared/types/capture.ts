@@ -102,6 +102,9 @@ export interface ICommandNode {
     readonly vertexBuffers?: readonly string[];
     /** Id of currently bound index buffer. */
     readonly indexBufferId?: string;
+
+    /** Base64 data URL of the visual output at this point (e.g., canvas snapshot after submit). */
+    readonly visualOutput?: string;
 }
 
 // ─── Top-level capture ───────────────────────────────────────────────
