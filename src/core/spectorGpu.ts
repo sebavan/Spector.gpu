@@ -108,6 +108,13 @@ export class SpectorGPU {
     private _devicePrototypePatched = false;
     private _originalCreateCommandEncoder: Function | null = null;
 
+    // Pass state tracking (for state snapshots on draw/dispatch nodes).
+    // Updated incrementally via _trackPassState(); reset on each new pass.
+    private _currentPipelineId: string | null = null;
+    private _currentBindGroups: string[] = [];
+    private _currentVertexBuffers: string[] = [];
+    private _currentIndexBufferId: string | null = null;
+
     // Subsystems — allocated once, reused across captures.
     private readonly _recorderManager = new RecorderManager();
     private readonly _gpuSpy = new GpuSpy();
@@ -319,6 +326,7 @@ export class SpectorGPU {
 
         this._encoderSpy.onBeginRenderPass.add(({ pass, descriptor }) => {
             this._renderPassSpy.spyOnRenderPass(pass);
+            this._resetPassState();
             if (this._isCapturing && this._commandTree) {
                 const desc = serializeDescriptor(descriptor);
                 this._commandTree.pushScope(
@@ -331,6 +339,7 @@ export class SpectorGPU {
 
         this._encoderSpy.onBeginComputePass.add(({ pass, descriptor }) => {
             this._computePassSpy.spyOnComputePass(pass);
+            this._resetPassState();
             if (this._isCapturing && this._commandTree) {
                 const desc = serializeDescriptor(descriptor);
                 this._commandTree.pushScope(
@@ -354,8 +363,22 @@ export class SpectorGPU {
 
         this._renderPassSpy.onCommand.add(({ methodName, args }) => {
             if (!this._isCapturing || !this._commandTree) return;
+
+            // Track state changes for pipeline/bind group/buffer snapshots.
+            this._trackPassState(methodName, args);
+
             const type = METHOD_TO_COMMAND_TYPE[methodName] ?? CommandType.Other;
-            this._commandTree.addCommand(type, methodName, argsToRecord(args));
+            const node = this._commandTree.addCommand(type, methodName, argsToRecord(args));
+
+            // Attach state snapshot to draw calls.
+            if (type === CommandType.Draw) {
+                node.setStateSnapshot({
+                    pipelineId: this._currentPipelineId ?? undefined,
+                    bindGroups: this._currentBindGroups.length > 0 ? [...this._currentBindGroups] : undefined,
+                    vertexBuffers: this._currentVertexBuffers.length > 0 ? [...this._currentVertexBuffers] : undefined,
+                    indexBufferId: this._currentIndexBufferId ?? undefined,
+                });
+            }
         });
 
         this._renderPassSpy.onEnd.add(() => {
@@ -368,8 +391,18 @@ export class SpectorGPU {
 
         this._computePassSpy.onCommand.add(({ methodName, args }) => {
             if (!this._isCapturing || !this._commandTree) return;
+
+            this._trackPassState(methodName, args);
+
             const type = METHOD_TO_COMMAND_TYPE[methodName] ?? CommandType.Other;
-            this._commandTree.addCommand(type, methodName, argsToRecord(args));
+            const node = this._commandTree.addCommand(type, methodName, argsToRecord(args));
+
+            if (type === CommandType.Dispatch) {
+                node.setStateSnapshot({
+                    pipelineId: this._currentPipelineId ?? undefined,
+                    bindGroups: this._currentBindGroups.length > 0 ? [...this._currentBindGroups] : undefined,
+                });
+            }
         });
 
         this._computePassSpy.onEnd.add(() => {
@@ -382,20 +415,54 @@ export class SpectorGPU {
 
         this._queueSpy.onSubmit.add(({ commandBuffers }) => {
             if (this._isCapturing && this._commandTree) {
-                const submitNode = this._commandTree.addCommand(
+                this._commandTree.addCommand(
                     CommandType.Submit,
                     'submit',
                     { commandBufferCount: commandBuffers.length },
                 );
-
-                // Best-effort canvas screenshot after submit.
-                const screenshot = this._captureCanvasScreenshot();
-                if (screenshot) {
-                    submitNode.setVisualOutput(screenshot);
-                    this._commandTree.setVisualOutputOnRecentPasses(screenshot);
-                }
             }
         });
+    }
+
+    // ── Pass state tracking ──────────────────────────────────────────
+
+    /** Reset pass-local state when entering a new render/compute pass. */
+    private _resetPassState(): void {
+        this._currentPipelineId = null;
+        this._currentBindGroups.length = 0;
+        this._currentVertexBuffers.length = 0;
+        this._currentIndexBufferId = null;
+    }
+
+    /**
+     * Update tracked pass state from a render/compute pass command.
+     * Called on every pass-level command; only acts on state-setting methods.
+     * Hot path — zero allocations (reuses existing arrays).
+     */
+    private _trackPassState(methodName: string, args: readonly unknown[]): void {
+        if (methodName === 'setPipeline') {
+            if (args[0]) {
+                this._currentPipelineId = this._recorderManager.getId(args[0] as object) ?? null;
+            }
+        } else if (methodName === 'setBindGroup') {
+            if (args.length >= 2) {
+                const index = args[0] as number;
+                const bgId = args[1] ? (this._recorderManager.getId(args[1] as object) ?? 'unknown') : '';
+                while (this._currentBindGroups.length <= index) this._currentBindGroups.push('');
+                this._currentBindGroups[index] = bgId;
+            }
+        } else if (methodName === 'setVertexBuffer') {
+            if (args.length >= 2) {
+                const slot = args[0] as number;
+                const bufId = args[1] ? (this._recorderManager.getId(args[1] as object) ?? 'unknown') : '';
+                while (this._currentVertexBuffers.length <= slot) this._currentVertexBuffers.push('');
+                this._currentVertexBuffers[slot] = bufId;
+            }
+        } else if (methodName === 'setIndexBuffer') {
+            if (args[0]) {
+                this._currentIndexBufferId = this._recorderManager.getId(args[0] as object) ?? null;
+            }
+        }
     }
 
     // ── Capture internals ────────────────────────────────────────────
@@ -443,6 +510,12 @@ export class SpectorGPU {
 
     /** Build the ICapture from current tree + resource state. */
     private _buildCapture(): ICapture {
+        // Take screenshot now — the frame has been composited after 2 rAFs.
+        const screenshot = this._captureCanvasScreenshot();
+        if (screenshot && this._commandTree) {
+            this._commandTree.setVisualOutputOnAllPasses(screenshot);
+        }
+
         const duration = performance.now() - this._captureStartTime;
         const treeStats = this._commandTree!.getStats();
         const resourceCounts = this._recorderManager.getResourceCounts();

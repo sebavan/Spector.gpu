@@ -107,6 +107,23 @@ export class CommandTreeBuilder {
     }
 
     /**
+     * Set visual output on ALL Submit and RenderPass nodes in the tree.
+     * Called from _buildCapture() when the frame has been fully composited.
+     */
+    public setVisualOutputOnAllPasses(dataUrl: string): void {
+        function walk(nodes: readonly CommandNodeBuilder[]): void {
+            for (let i = 0; i < nodes.length; i++) {
+                const node = nodes[i];
+                if (node.type === CommandType.Submit || node.type === CommandType.RenderPass) {
+                    node.setVisualOutput(dataUrl);
+                }
+                walk(node.children);
+            }
+        }
+        walk(this._roots);
+    }
+
+    /**
      * Get capture statistics.
      */
     public getStats(): Pick<ICaptureStats, 'totalCommands' | 'drawCalls' | 'dispatchCalls' | 'renderPasses' | 'computePasses'> {

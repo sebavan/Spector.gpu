@@ -180,12 +180,115 @@ export async function captureFrame(
     }, timeout);
 }
 
+/**
+ * Like captureFrame, but also intercepts CAPTURE_DATA to return the full
+ * serialized ICapture (command tree + resources). Used by quality tests
+ * that need to inspect draw node state and visual output.
+ */
+export async function captureFrameWithData(
+    page: Page,
+    timeout = 15_000,
+): Promise<FullCaptureResult> {
+    return page.evaluate((ms: number) => {
+        return new Promise<any>((resolve, reject) => {
+            const timer = setTimeout(
+                () => reject(new Error('Capture timed out')),
+                ms,
+            );
+
+            let captureData: any = null;
+
+            function onMessage(event: MessageEvent): void {
+                const d = event.data;
+                if (!d || typeof d.type !== 'string') return;
+
+                if (d.type === 'SPECTOR_GPU_CAPTURE_DATA') {
+                    try {
+                        captureData = JSON.parse(d.payload.data);
+                    } catch (_e) {
+                        // data not parseable — will be null
+                    }
+                }
+
+                if (d.type === 'SPECTOR_GPU_CAPTURE_COMPLETE') {
+                    clearTimeout(timer);
+                    window.removeEventListener('message', onMessage);
+                    resolve({
+                        captureId: d.payload.captureId,
+                        stats: d.payload.stats,
+                        capture: captureData,
+                    });
+                }
+
+                if (d.type === 'SPECTOR_GPU_CAPTURE_ERROR') {
+                    clearTimeout(timer);
+                    window.removeEventListener('message', onMessage);
+                    reject(new Error(d.payload?.message ?? 'Capture error'));
+                }
+            }
+
+            window.addEventListener('message', onMessage);
+
+            window.postMessage(
+                { type: 'SPECTOR_GPU_START_CAPTURE', payload: {} },
+                '*',
+            );
+        });
+    }, timeout);
+}
+
 // ── Types ────────────────────────────────────────────────────────────
 
 /** Shape of the CAPTURE_COMPLETE payload posted by the content script. */
 export interface CaptureResult {
     captureId: string;
     stats: CaptureStats;
+}
+
+/**
+ * Full capture result including command tree and resource data.
+ * Obtained by intercepting CAPTURE_DATA + CAPTURE_COMPLETE messages.
+ */
+export interface FullCaptureResult extends CaptureResult {
+    capture: SerializedCapture;
+}
+
+/**
+ * ICapture after JSON serialization. Maps become plain objects keyed by
+ * resource id. ICommandNode trees are preserved structurally.
+ */
+export interface SerializedCapture {
+    id: string;
+    commands: SerializedCommandNode[];
+    resources: {
+        shaderModules: Record<string, { id: string; label?: string; code: string }>;
+        renderPipelines: Record<string, {
+            id: string; label?: string;
+            vertex: { moduleId: string; entryPoint?: string };
+            fragment?: { moduleId: string; entryPoint?: string };
+        }>;
+        computePipelines: Record<string, {
+            id: string; label?: string;
+            compute: { moduleId: string; entryPoint?: string };
+        }>;
+        [key: string]: unknown;
+    };
+    stats: CaptureStats;
+    [key: string]: unknown;
+}
+
+export interface SerializedCommandNode {
+    id: string;
+    type: string;
+    name: string;
+    args: Record<string, unknown>;
+    children: SerializedCommandNode[];
+    parentId: string | null;
+    pipelineId?: string;
+    bindGroups?: string[];
+    vertexBuffers?: string[];
+    indexBufferId?: string;
+    visualOutput?: string;
 }
 
 export interface CaptureStats {
