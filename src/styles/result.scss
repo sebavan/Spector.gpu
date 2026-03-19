@@ -274,9 +274,14 @@ body {
     }
 }
 
-// ─── Shader viewer ───────────────────────────────────────────────────
+// ─── Shader editor ───────────────────────────────────────────────────
 
-.shader-viewer {
+$editor-font: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+$editor-font-size: 12px;
+$editor-line-height: 1.6;
+$gutter-width: 48px;
+
+.shader-editor {
     &.empty {
         color: $text-muted;
         text-align: center;
@@ -290,22 +295,157 @@ body {
             font-size: 13px;
             color: $accent;
             margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .modified-indicator {
+            color: #ff9800;
+            font-size: 18px;
+            line-height: 1;
         }
     }
 
-    .shader-code {
+    // ── Toolbar ──────────────────────────────────────────────────────
+
+    .shader-editor-toolbar {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 6px;
+    }
+
+    .toolbar-btn {
+        padding: 4px 12px;
+        font-size: 11px;
+        border: 1px solid $border;
+        border-radius: 4px;
+        background: $bg-tertiary;
+        color: $text-secondary;
+        cursor: pointer;
+        transition: background 0.1s, color 0.1s;
+
+        &:hover {
+            background: $bg-hover;
+            color: $text-primary;
+        }
+
+        &.active {
+            background: $accent-dark;
+            border-color: $accent;
+            color: #fff;
+        }
+    }
+
+    // ── Editor container (gutter + layers) ───────────────────────────
+
+    .editor-container {
+        display: flex;
         background: $bg-tertiary;
         border: 1px solid $border;
         border-radius: 6px;
-        padding: 16px;
-        overflow-x: auto;
-        font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-        font-size: 12px;
-        line-height: 1.6;
-        color: $text-primary;
+        overflow: hidden;
+        position: relative;
+
+        // Blue border when editing
+        &.editing {
+            border-color: $accent;
+        }
+    }
+
+    // ── Line-number gutter ───────────────────────────────────────────
+
+    .line-numbers {
+        width: $gutter-width;
+        flex-shrink: 0;
+        overflow: hidden;
+        padding: 16px 0;
+        background: rgba(0, 0, 0, 0.15);
+        border-right: 1px solid $border;
+        user-select: none;
+
+        .line-number {
+            display: block;
+            padding: 0 10px 0 0;
+            text-align: right;
+            font-family: $editor-font;
+            font-size: $editor-font-size;
+            line-height: $editor-line-height;
+            color: $text-muted;
+
+            &.current {
+                color: $accent;
+                background: rgba($accent, 0.08);
+            }
+        }
+    }
+
+    // ── Code layers (pre + textarea stacked) ─────────────────────────
+
+    .editor-layers {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+    }
+
+    // Shared text styling for both layers — must be identical so they
+    // align pixel-for-pixel.
+    %editor-text {
+        font-family: $editor-font;
+        font-size: $editor-font-size;
+        line-height: $editor-line-height;
         white-space: pre;
         tab-size: 4;
+        padding: 16px;
+        margin: 0;
+        border: none;
+        overflow: auto;
     }
+
+    .editor-highlight {
+        @extend %editor-text;
+        position: absolute;
+        inset: 0;
+        color: $text-primary;
+        pointer-events: none;
+        background: transparent;
+    }
+
+    .editor-textarea {
+        @extend %editor-text;
+        position: relative;
+        width: 100%;
+        height: 100%;
+        min-height: 200px;
+        resize: vertical;
+        background: transparent;
+        // The text is transparent — the user sees the highlighted pre layer
+        // underneath, but interacts with this textarea.
+        color: transparent;
+        caret-color: $text-primary;
+        outline: none;
+
+        &[readonly] {
+            cursor: default;
+        }
+
+        // Selection needs to be visible even though text is transparent.
+        &::selection {
+            background: rgba($accent, 0.25);
+        }
+    }
+
+    // ── WGSL syntax-highlighting classes ─────────────────────────────
+
+    .wgsl-keyword    { color: #c586c0; }
+    .wgsl-type       { color: #4ec9b0; }
+    .wgsl-decorator  { color: #dcdcaa; }
+    .wgsl-builtin    { color: #dcdcaa; }
+    .wgsl-function   { color: #dcdcaa; }
+    .wgsl-number     { color: #b5cea8; }
+    .wgsl-string     { color: #ce9178; }
+    .wgsl-comment    { color: #6a9955; font-style: italic; }
+    .wgsl-punctuation { color: #808080; }
 }
 
 // ─── Pipeline inspector ──────────────────────────────────────────────

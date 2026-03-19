@@ -3,7 +3,7 @@ import type { ICapture, ICommandNode } from '@shared/types';
 import { readCapture } from '@shared/utils/captureStorage';
 import { CommandTree } from './CommandTree';
 import { CommandDetail } from './CommandDetail';
-import { ShaderViewer } from './ShaderViewer';
+import { ShaderEditor } from './ShaderEditor';
 import { PipelineInspector } from './PipelineInspector';
 import { ResourceInspector } from './ResourceInspector';
 import { CaptureHeader } from './CaptureHeader';
@@ -78,7 +78,7 @@ export function ResultApp() {
                     </div>
                     <div className="tab-content">
                         {activeTab === 'detail'    && <CommandDetail node={selectedNode} capture={capture} />}
-                        {activeTab === 'shader'    && <ShaderViewer node={selectedNode} capture={capture} />}
+                        {activeTab === 'shader'    && <ShaderEditor node={selectedNode} capture={capture} />}
                         {activeTab === 'pipeline'  && <PipelineInspector node={selectedNode} capture={capture} />}
                         {activeTab === 'resources' && <ResourceInspector capture={capture} />}
                     </div>
