@@ -1,0 +1,12 @@
+{
+  "name": "spector-gpu-capture",
+  "version": "0.1.0",
+  "description": "CLI tool for AI agents to capture and introspect WebGPU frames from any page",
+  "main": "capture-cli.js",
+  "bin": {
+    "spector-gpu-capture": "./capture-cli.js"
+  },
+  "dependencies": {
+    "playwright": "^1.58.0"
+  }
+}
