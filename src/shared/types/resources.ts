@@ -22,6 +22,8 @@ export interface IBufferInfo {
     readonly usage: number;
     readonly mappedAtCreation: boolean;
     readonly state: BufferState;
+    /** Base64-encoded buffer contents; populated only after readback. */
+    readonly dataBase64?: string;
 }
 
 // ─── Texture / TextureView ───────────────────────────────────────────

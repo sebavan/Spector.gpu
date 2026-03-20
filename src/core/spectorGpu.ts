@@ -25,7 +25,7 @@ import { Logger } from '@shared/utils/logger';
 import { globalIdGenerator } from '@shared/utils';
 import { serializeDescriptor } from '@shared/utils/serialization';
 import { SPECTOR_GPU_VERSION, CAPTURE_TIMEOUT_MS } from '@shared/constants';
-import type { IAdapterInfo, ICapture, ICaptureStats, CommandType as CommandTypeEnum, ITextureInfo } from '@shared/types';
+import type { IAdapterInfo, IBufferInfo, ICapture, ICaptureStats, CommandType as CommandTypeEnum, ITextureInfo } from '@shared/types';
 import { CommandType } from '@shared/types';
 import { CommandTreeBuilder } from '@core/capture';
 import { RecorderManager } from '@core/recorders';
@@ -80,6 +80,20 @@ const METHOD_TO_COMMAND_TYPE: Readonly<Record<string, CommandTypeEnum>> = {
     // Misc
     executeBundles: CommandType.ExecuteBundles,
 };
+
+/** Convert Uint8Array to base64 string. Uses btoa in chunks to avoid stack overflow. */
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+    const CHUNK = 8192;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+        const end = i + CHUNK < bytes.length ? i + CHUNK : bytes.length;
+        const chunk = bytes.subarray(i, end);
+        for (let j = 0; j < chunk.length; j++) {
+            binary += String.fromCharCode(chunk[j]);
+        }
+    }
+    return btoa(binary);
+}
 
 /** Convert positional args array to Record<string, unknown> for ICommandNode. */
 function argsToRecord(args: readonly unknown[]): Record<string, unknown> {
@@ -1050,6 +1064,12 @@ export class SpectorGPU {
     private static readonly READBACK_THUMB_SIZE = 128;
     /** Timeout for the entire readback operation (ms). */
     private static readonly READBACK_TIMEOUT_MS = 5000;
+    /** Maximum number of buffers to read back per capture. */
+    private static readonly MAX_READBACK_BUFFERS = 32;
+    /** Maximum byte size of a single buffer readback (16 MB). */
+    private static readonly MAX_BUFFER_READBACK_SIZE = 16 * 1024 * 1024;
+    /** Timeout for buffer map operations (ms). */
+    private static readonly BUFFER_READBACK_TIMEOUT_MS = 5000;
 
     /** Async finalization: readback textures, then build and emit capture. */
     private async _finalizeCapture(): Promise<void> {
@@ -1064,6 +1084,13 @@ export class SpectorGPU {
         } catch (e) {
             Logger.warn('Texture readback failed:', e);
             // Continue — capture still works without previews
+        }
+
+        try {
+            await this._readbackBuffers();
+        } catch (e) {
+            Logger.warn('Buffer readback failed:', e);
+            // Continue — capture still works without buffer data
         }
 
         try {
@@ -1278,6 +1305,105 @@ export class SpectorGPU {
         }
 
         Logger.info(`Texture readback complete: ${tasks.length} textures`);
+    }
+
+    // ── Async buffer readback ────────────────────────────────────────
+
+    /**
+     * Read back raw buffer data and store as base64 on IBufferInfo.
+     *
+     * Strategy:
+     *   1. Iterate tracked buffers, filter to readable ones
+     *   2. For each: create staging buffer, copyBufferToBuffer, submit
+     *   3. Map staging buffer, read bytes, encode as base64
+     *   4. Update RecorderManager with base64 data
+     *   5. Destroy staging buffer
+     *
+     * Skips: destroyed buffers, mapped buffers, zero-size buffers,
+     * oversized buffers, buffers without COPY_SRC.
+     */
+    private async _readbackBuffers(): Promise<void> {
+        const device = this._device;
+        if (!device) return;
+
+        const buffers = this._recorderManager.getBuffers();
+        if (buffers.size === 0) return;
+
+        this._isReadingBack = true;
+
+        try {
+            const readable: Array<{ id: string; info: IBufferInfo; gpuBuffer: GPUBuffer }> = [];
+
+            for (const [id, info] of buffers) {
+                if (readable.length >= SpectorGPU.MAX_READBACK_BUFFERS) break;
+                if (info.state === 'destroyed') continue;
+                if (this._recorderManager.isBufferDestroyed(id)) continue;
+                if (info.size === 0 || info.size > SpectorGPU.MAX_BUFFER_READBACK_SIZE) continue;
+                if (!(info.usage & 0x01)) continue; // COPY_SRC
+                // Skip mapped buffers — can't be used as copy source while mapped
+                if (info.state === 'mapped' || info.state === 'mapping-pending') continue;
+
+                const obj = this._recorderManager.getObject(id);
+                if (!obj) continue;
+
+                readable.push({ id, info, gpuBuffer: obj as GPUBuffer });
+            }
+
+            if (readable.length === 0) return;
+
+            Logger.info(`Reading back ${readable.length} buffers...`);
+
+            let totalBytes = 0;
+            const MAX_TOTAL_BYTES = 32 * 1024 * 1024; // 32 MB total budget
+
+            for (const { id, info, gpuBuffer } of readable) {
+                try {
+                    if (totalBytes + info.size > MAX_TOTAL_BYTES) {
+                        Logger.warn('Buffer readback size budget exceeded');
+                        break;
+                    }
+
+                    device.pushErrorScope('validation');
+
+                    const stagingBuffer = device.createBuffer({
+                        size: info.size,
+                        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+                    });
+
+                    const encoder = device.createCommandEncoder();
+                    encoder.copyBufferToBuffer(gpuBuffer, 0, stagingBuffer, 0, info.size);
+                    device.queue.submit([encoder.finish()]);
+
+                    const err = await device.popErrorScope();
+                    if (err) {
+                        Logger.warn(`Buffer readback copy failed for ${id}: ${(err as GPUValidationError).message}`);
+                        stagingBuffer.destroy();
+                        continue;
+                    }
+
+                    await Promise.race([
+                        stagingBuffer.mapAsync(GPUMapMode.READ),
+                        new Promise<never>((_, reject) =>
+                            setTimeout(() => reject(new Error('timeout')), SpectorGPU.BUFFER_READBACK_TIMEOUT_MS)
+                        ),
+                    ]);
+
+                    const data = new Uint8Array(stagingBuffer.getMappedRange());
+                    const base64 = uint8ArrayToBase64(data);
+                    this._recorderManager.setBufferData(id, base64);
+                    totalBytes += info.size;
+
+                    stagingBuffer.unmap();
+                    stagingBuffer.destroy();
+                } catch (e) {
+                    Logger.warn(`Buffer readback failed for ${id}:`, e);
+                }
+            }
+
+            Logger.info(`Buffer readback complete`);
+        } finally {
+            this._isReadingBack = false;
+        }
     }
 
     /** Build the ICapture from current tree + resource state. */

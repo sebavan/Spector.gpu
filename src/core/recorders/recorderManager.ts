@@ -47,6 +47,7 @@ export class RecorderManager {
     private _bindGroups = new Map<string, IBindGroupInfo>();
     private _bindGroupLayouts = new Map<string, IBindGroupLayoutInfo>();
     private _destroyedTextures = new Set<string>();
+    private _destroyedBuffers = new Set<string>();
 
     // ─── Object ID tracking ──────────────────────────────────────────
 
@@ -78,6 +79,19 @@ export class RecorderManager {
     /** Get a read-only view of all tracked textures. */
     public getTextures(): ReadonlyMap<string, ITextureInfo> {
         return this._textures;
+    }
+
+    /** Get a read-only view of all tracked buffers. */
+    public getBuffers(): ReadonlyMap<string, IBufferInfo> {
+        return this._buffers;
+    }
+
+    /** Update a buffer info with readback data. */
+    public setBufferData(bufferId: string, dataBase64: string): void {
+        const info = this._buffers.get(bufferId);
+        if (info) {
+            this._buffers.set(bufferId, { ...info, dataBase64 });
+        }
     }
 
     /** Update a texture info with a readback preview image. */
@@ -135,7 +149,16 @@ export class RecorderManager {
     }
 
     public recordBufferDestroy(buffer: object): void {
+        const id = this._objectIds.get(buffer);
+        if (id) {
+            this._destroyedBuffers.add(id);
+        }
         this.updateBufferState(buffer, 'destroyed');
+    }
+
+    /** Check if a buffer has been destroyed. */
+    public isBufferDestroyed(bufferId: string): boolean {
+        return this._destroyedBuffers.has(bufferId);
     }
 
     // ─── Texture ─────────────────────────────────────────────────────
@@ -459,5 +482,6 @@ export class RecorderManager {
         this._bindGroups.clear();
         this._bindGroupLayouts.clear();
         this._destroyedTextures.clear();
+        this._destroyedBuffers.clear();
     }
 }

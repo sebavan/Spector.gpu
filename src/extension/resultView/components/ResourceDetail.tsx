@@ -1,5 +1,6 @@
 import React from 'react';
-import type { ICapture, ICommandNode, IShaderModuleInfo, ITextureInfo } from '@shared/types';
+import type { ICapture, ICommandNode, IShaderModuleInfo, ITextureInfo, ITextureViewInfo } from '@shared/types';
+import { resolveMapEntry } from '../resourceMapHelpers';
 import { highlightWGSL } from './wgslHighlighter';
 import { JsonTree } from './JsonTree';
 
@@ -187,6 +188,21 @@ function CubeFaceGrid({ faces }: { faces: readonly string[] }) {
     );
 }
 
+// ── Texture view detail with parent texture preview ───────────────────
+
+export function TextureViewDetail({ view, capture }: { view: ITextureViewInfo; capture: ICapture }) {
+    const parentTexture = resolveMapEntry(capture.resources.textures, view.textureId);
+
+    return (
+        <div>
+            {parentTexture && (
+                <TextureThumbnail texture={parentTexture} capture={capture} />
+            )}
+            <JsonTree data={view} />
+        </div>
+    );
+}
+
 // ── Unified resource detail panel ─────────────────────────────────────
 
 interface ResourceDetailProps {
@@ -204,13 +220,17 @@ export function ResourceDetail({ category, resource, capture }: ResourceDetailPr
         return <ShaderModuleDetail module={resource as IShaderModuleInfo} />;
     }
 
-    if (category === 'textures' || category === 'textureViews') {
+    if (category === 'textures') {
         return (
             <>
                 <TextureThumbnail texture={resource as ITextureInfo} capture={capture} />
                 <JsonTree data={resource} />
             </>
         );
+    }
+
+    if (category === 'textureViews') {
+        return <TextureViewDetail view={resource as ITextureViewInfo} capture={capture} />;
     }
 
     return <JsonTree data={resource} />;

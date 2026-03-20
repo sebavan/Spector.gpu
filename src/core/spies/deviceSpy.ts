@@ -114,6 +114,15 @@ export class DeviceSpy {
         // createBuffer
         globalOriginStore.save(device, 'createBuffer');
         patchMethod(device, 'createBuffer', {
+            before(_methodName, args) {
+                // Add COPY_SRC so we can read back buffer data.
+                // CRITICAL: clone the descriptor — mutating the app's object
+                // breaks engines that inspect usage after createBuffer.
+                const desc = args[0] as Record<string, unknown> | undefined;
+                if (desc && typeof desc.usage === 'number') {
+                    return [{ ...desc, usage: (desc.usage as number) | 0x01 }]; // COPY_SRC
+                }
+            },
             after(methodName, args, result) {
                 if (result) rm.recordBufferCreation(result as object, args[0]);
                 cb.onCommand?.(methodName, [...args], result);

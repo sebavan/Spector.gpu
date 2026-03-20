@@ -3,8 +3,8 @@ import type { ICapture, IResourceMap } from '@shared/types';
 import { resolveMapToRecord } from '../resourceMapHelpers';
 import { JsonTree } from './JsonTree';
 import type { NavigationTarget } from './NavigationContext';
-import { ShaderModuleDetail, TextureThumbnail, detectShaderStages } from './ResourceDetail';
-import type { IShaderModuleInfo, ITextureInfo } from '@shared/types';
+import { ShaderModuleDetail, TextureThumbnail, TextureViewDetail, detectShaderStages } from './ResourceDetail';
+import type { IShaderModuleInfo, ITextureInfo, ITextureViewInfo } from '@shared/types';
 
 /** All resource categories present in IResourceMap. */
 type ResourceCategory = keyof IResourceMap;
@@ -98,10 +98,7 @@ export function ResourceInspector({ capture, navTarget }: { capture: ICapture; n
                             <JsonTree data={selectedResource} />
                         </>
                     ) : selectedCategory === 'textureViews' && selectedResource ? (
-                        <>
-                            <TextureThumbnail texture={selectedResource as ITextureInfo} capture={capture} />
-                            <JsonTree data={selectedResource} />
-                        </>
+                        <TextureViewDetail view={selectedResource as ITextureViewInfo} capture={capture} />
                     ) : selectedResource ? (
                         <JsonTree data={selectedResource} />
                     ) : (
