@@ -64,6 +64,7 @@ interface ResolvedLayout {
     layout: IVertexBufferLayout;
     slot: number;
     pipelineId: string;
+    indexBufferId?: string;
 }
 
 interface LayoutSearchStats {
@@ -94,7 +95,12 @@ function findVertexLayoutForBuffer(
                         capture.resources.renderPipelines, node.pipelineId,
                     );
                     if (pipeline?.vertex?.buffers?.[slot]) {
-                        return { layout: pipeline.vertex.buffers[slot], slot, pipelineId: node.pipelineId };
+                        return {
+                            layout: pipeline.vertex.buffers[slot],
+                            slot,
+                            pipelineId: node.pipelineId,
+                            indexBufferId: node.indexBufferId,
+                        };
                     }
                 }
             }
@@ -163,6 +169,19 @@ export function BufferDetail({ buffer, capture }: BufferDetailProps) {
 
     const resolved = layoutResult?.resolved ?? null;
 
+    // Resolve index buffer data for proper wireframe rendering
+    const indexInfo = useMemo(() => {
+        if (!resolved?.indexBufferId) return null;
+        const idxBuf = resolveMapEntry(capture.resources.buffers, resolved.indexBufferId) as IBufferInfo | undefined;
+        if (!idxBuf?.dataBase64) return null;
+        const binary = atob(idxBuf.dataBase64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        // Detect uint16 vs uint32: if buffer size = vertexCount * 2 and max index fits uint16, use uint16
+        const indexFormat: 'uint16' | 'uint32' = idxBuf.size <= 65536 * 2 ? 'uint16' : 'uint32';
+        return { data: bytes, format: indexFormat };
+    }, [resolved?.indexBufferId, capture.resources.buffers]);
+
     return (
         <div className="buffer-detail">
             <div className="buffer-info-grid">
@@ -188,7 +207,12 @@ export function BufferDetail({ buffer, capture }: BufferDetailProps) {
 
             {rawData && isVertexBuffer && !isIndexBuffer && resolved && (
                 <Suspense fallback={<div className="mesh-viewer-loading">Loading 3D viewer...</div>}>
-                    <LazyMeshViewer rawData={rawData} layout={resolved.layout} />
+                    <LazyMeshViewer
+                        rawData={rawData}
+                        layout={resolved.layout}
+                        indexData={indexInfo?.data}
+                        indexFormat={indexInfo?.format}
+                    />
                 </Suspense>
             )}
 

@@ -23,9 +23,13 @@ type RenderMode = 'wireframe' | 'solid' | 'points';
 export default function BufferMeshViewer({
     rawData,
     layout,
+    indexData,
+    indexFormat,
 }: {
     rawData: Uint8Array;
     layout: IVertexBufferLayout;
+    indexData?: Uint8Array;
+    indexFormat?: 'uint16' | 'uint32';
 }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const disposedRef = useRef(false);
@@ -67,7 +71,7 @@ export default function BufferMeshViewer({
 
             new HemisphericLight('light', new Vector3(0, 1, 0.5), scene);
 
-            const mesh = createMeshFromVertexData(rawData, layout, scene);
+            const mesh = createMeshFromVertexData(rawData, layout, scene, indexData, indexFormat);
             if (mesh) {
                 const bounds = mesh.getBoundingInfo().boundingBox;
                 const center = bounds.center;
@@ -108,7 +112,7 @@ export default function BufferMeshViewer({
                 try { engine.dispose(); } catch { /* best-effort */ }
             }
         }
-    }, [rawData, layout]);
+    }, [rawData, layout, indexData, indexFormat]);
 
     // Apply render mode changes without recreating the scene
     useEffect(() => {
@@ -150,6 +154,8 @@ function createMeshFromVertexData(
     rawData: Uint8Array,
     layout: IVertexBufferLayout,
     scene: Scene,
+    indexData?: Uint8Array,
+    indexFormat?: 'uint16' | 'uint32',
 ): Mesh | null {
     const stride = layout.arrayStride;
     if (stride === 0) return null;
@@ -204,9 +210,29 @@ function createMeshFromVertexData(
         }
     }
 
-    const indices = new Uint32Array(vertexCount);
-    for (let i = 0; i < vertexCount; i++) {
-        indices[i] = i;
+    // Use actual index buffer if available, otherwise sequential
+    let indices: Uint32Array;
+    if (indexData && indexData.length > 0) {
+        const idv = new DataView(indexData.buffer, indexData.byteOffset, indexData.byteLength);
+        if (indexFormat === 'uint32') {
+            const count = Math.floor(indexData.length / 4);
+            indices = new Uint32Array(count);
+            for (let i = 0; i < count; i++) {
+                indices[i] = idv.getUint32(i * 4, true);
+            }
+        } else {
+            // uint16
+            const count = Math.floor(indexData.length / 2);
+            indices = new Uint32Array(count);
+            for (let i = 0; i < count; i++) {
+                indices[i] = idv.getUint16(i * 2, true);
+            }
+        }
+    } else {
+        indices = new Uint32Array(vertexCount);
+        for (let i = 0; i < vertexCount; i++) {
+            indices[i] = i;
+        }
     }
 
     const mesh = new Mesh('bufferPreview', scene);
