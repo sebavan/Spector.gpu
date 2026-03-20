@@ -123,6 +123,13 @@ export class DeviceSpy {
         // createTexture
         globalOriginStore.save(device, 'createTexture');
         patchMethod(device, 'createTexture', {
+            before(_methodName, args) {
+                // Silently add COPY_SRC so we can read back texture data for previews.
+                const desc = args[0] as Record<string, unknown> | undefined;
+                if (desc && typeof desc.usage === 'number') {
+                    desc.usage = (desc.usage as number) | 0x01; // GPUTextureUsage.COPY_SRC
+                }
+            },
             after(methodName, args, result) {
                 if (result) {
                     rm.recordTextureCreation(result as object, args[0]);

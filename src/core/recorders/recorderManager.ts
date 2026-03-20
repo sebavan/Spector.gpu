@@ -33,6 +33,8 @@ import { serializeDescriptor } from '@shared/utils/serialization';
 export class RecorderManager {
     /** Object → tracking ID. WeakMap so GC of GPU objects is not blocked. */
     private _objectIds = new WeakMap<object, string>();
+    /** Tracking ID → object (weak). Reverse lookup for readback. */
+    private _idToObject = new Map<string, WeakRef<object>>();
 
     // Live resource inventories — keyed by tracking ID.
     private _buffers = new Map<string, IBufferInfo>();
@@ -56,6 +58,7 @@ export class RecorderManager {
         if (id === undefined) {
             id = globalIdGenerator.next(prefix);
             this._objectIds.set(obj, id);
+            this._idToObject.set(id, new WeakRef(obj));
         }
         return id;
     }
@@ -63,6 +66,25 @@ export class RecorderManager {
     /** Get the tracking ID for a GPU object (undefined if not tracked). */
     public getId(obj: object): string | undefined {
         return this._objectIds.get(obj);
+    }
+
+    /** Resolve a tracking ID back to the GPU object (may return undefined if GC'd). */
+    public getObject(id: string): object | undefined {
+        const ref = this._idToObject.get(id);
+        return ref?.deref();
+    }
+
+    /** Get a read-only view of all tracked textures. */
+    public getTextures(): ReadonlyMap<string, ITextureInfo> {
+        return this._textures;
+    }
+
+    /** Update a texture info with a readback preview image. */
+    public setTexturePreview(textureId: string, dataUrl: string): void {
+        const info = this._textures.get(textureId);
+        if (info) {
+            this._textures.set(textureId, { ...info, previewDataUrl: dataUrl });
+        }
     }
 
     /**
@@ -411,6 +433,7 @@ export class RecorderManager {
     /** Reset all tracked resources. Typically used when the device is lost/destroyed. */
     public reset(): void {
         this._objectIds = new WeakMap();
+        this._idToObject.clear();
         this._buffers.clear();
         this._textures.clear();
         this._textureViews.clear();

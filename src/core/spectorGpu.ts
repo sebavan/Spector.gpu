@@ -25,10 +25,11 @@ import { Logger } from '@shared/utils/logger';
 import { globalIdGenerator } from '@shared/utils';
 import { serializeDescriptor } from '@shared/utils/serialization';
 import { SPECTOR_GPU_VERSION, CAPTURE_TIMEOUT_MS } from '@shared/constants';
-import type { IAdapterInfo, ICapture, ICaptureStats, CommandType as CommandTypeEnum } from '@shared/types';
+import type { IAdapterInfo, ICapture, ICaptureStats, CommandType as CommandTypeEnum, ITextureInfo } from '@shared/types';
 import { CommandType } from '@shared/types';
 import { CommandTreeBuilder } from '@core/capture';
 import { RecorderManager } from '@core/recorders';
+import { globalOriginStore } from '@core/proxy/originStore';
 import {
     GpuSpy,
     DeviceSpy,
@@ -87,6 +88,241 @@ function argsToRecord(args: readonly unknown[]): Record<string, unknown> {
         record[i] = serializeDescriptor(args[i]);
     }
     return record;
+}
+
+// ── Texture readback format utilities ────────────────────────────────
+
+/** Formats we can read back and convert to RGBA8 for thumbnails. */
+const READABLE_FORMATS = new Set([
+    'r8unorm', 'r8snorm', 'r8uint', 'r8sint',
+    'rg8unorm', 'rg8snorm', 'rg8uint', 'rg8sint',
+    'rgba8unorm', 'rgba8unorm-srgb', 'rgba8snorm', 'rgba8uint', 'rgba8sint',
+    'bgra8unorm', 'bgra8unorm-srgb',
+    'r16float', 'rg16float', 'rgba16float',
+    'r32float', 'rg32float', 'rgba32float',
+    'rgb10a2unorm',
+]);
+
+function isReadableFormat(format: string): boolean {
+    return READABLE_FORMATS.has(format);
+}
+
+/** Bytes per pixel for supported formats. Returns 0 for unsupported. */
+function bytesPerPixel(format: string): number {
+    switch (format) {
+        case 'r8unorm': case 'r8snorm': case 'r8uint': case 'r8sint':
+            return 1;
+        case 'rg8unorm': case 'rg8snorm': case 'rg8uint': case 'rg8sint':
+        case 'r16float':
+            return 2;
+        case 'rgba8unorm': case 'rgba8unorm-srgb': case 'rgba8snorm':
+        case 'rgba8uint': case 'rgba8sint':
+        case 'bgra8unorm': case 'bgra8unorm-srgb':
+        case 'rg16float':
+        case 'r32float':
+        case 'rgb10a2unorm':
+            return 4;
+        case 'rgba16float': case 'rg32float':
+            return 8;
+        case 'rgba32float':
+            return 16;
+        default:
+            return 0;
+    }
+}
+
+/** Convert a single pixel from GPU format to RGBA8. */
+function convertPixel(
+    src: Uint8Array, srcOff: number,
+    dst: Uint8Array, dstOff: number,
+    format: string,
+): void {
+    switch (format) {
+        case 'rgba8unorm': case 'rgba8unorm-srgb': case 'rgba8uint':
+            dst[dstOff]     = src[srcOff];
+            dst[dstOff + 1] = src[srcOff + 1];
+            dst[dstOff + 2] = src[srcOff + 2];
+            dst[dstOff + 3] = src[srcOff + 3];
+            break;
+
+        case 'bgra8unorm': case 'bgra8unorm-srgb':
+            dst[dstOff]     = src[srcOff + 2]; // B→R
+            dst[dstOff + 1] = src[srcOff + 1]; // G→G
+            dst[dstOff + 2] = src[srcOff];     // R→B
+            dst[dstOff + 3] = src[srcOff + 3];
+            break;
+
+        case 'rgba8snorm': case 'rgba8sint':
+            dst[dstOff]     = ((src[srcOff]     << 24 >> 24) + 128);
+            dst[dstOff + 1] = ((src[srcOff + 1] << 24 >> 24) + 128);
+            dst[dstOff + 2] = ((src[srcOff + 2] << 24 >> 24) + 128);
+            dst[dstOff + 3] = 255;
+            break;
+
+        case 'r8unorm': case 'r8uint':
+            dst[dstOff] = dst[dstOff + 1] = dst[dstOff + 2] = src[srcOff];
+            dst[dstOff + 3] = 255;
+            break;
+
+        case 'r8snorm': case 'r8sint':
+            dst[dstOff] = dst[dstOff + 1] = dst[dstOff + 2] = ((src[srcOff] << 24 >> 24) + 128);
+            dst[dstOff + 3] = 255;
+            break;
+
+        case 'rg8unorm': case 'rg8uint':
+            dst[dstOff]     = src[srcOff];
+            dst[dstOff + 1] = src[srcOff + 1];
+            dst[dstOff + 2] = 0;
+            dst[dstOff + 3] = 255;
+            break;
+
+        case 'rg8snorm': case 'rg8sint':
+            dst[dstOff]     = ((src[srcOff]     << 24 >> 24) + 128);
+            dst[dstOff + 1] = ((src[srcOff + 1] << 24 >> 24) + 128);
+            dst[dstOff + 2] = 0;
+            dst[dstOff + 3] = 255;
+            break;
+
+        case 'rgb10a2unorm': {
+            // 10-10-10-2 packed in little-endian u32
+            const v = src[srcOff] | (src[srcOff + 1] << 8) | (src[srcOff + 2] << 16) | (src[srcOff + 3] << 24);
+            dst[dstOff]     = ((v & 0x3FF) * 255 / 1023) | 0;
+            dst[dstOff + 1] = (((v >> 10) & 0x3FF) * 255 / 1023) | 0;
+            dst[dstOff + 2] = (((v >> 20) & 0x3FF) * 255 / 1023) | 0;
+            dst[dstOff + 3] = (((v >> 30) & 0x3) * 255 / 3) | 0;
+            break;
+        }
+
+        default:
+            // Float formats: read via DataView
+            convertFloatPixel(src, srcOff, dst, dstOff, format);
+            break;
+    }
+}
+
+/** Handle float format pixels (r16f, rg16f, rgba16f, r32f, rg32f, rgba32f). */
+function convertFloatPixel(
+    src: Uint8Array, srcOff: number,
+    dst: Uint8Array, dstOff: number,
+    format: string,
+): void {
+    const view = new DataView(src.buffer, src.byteOffset + srcOff);
+
+    let r = 0, g = 0, b = 0, a = 1;
+
+    switch (format) {
+        case 'r16float':
+            r = g = b = float16ToNumber(view.getUint16(0, true));
+            break;
+        case 'rg16float':
+            r = float16ToNumber(view.getUint16(0, true));
+            g = float16ToNumber(view.getUint16(2, true));
+            break;
+        case 'rgba16float':
+            r = float16ToNumber(view.getUint16(0, true));
+            g = float16ToNumber(view.getUint16(2, true));
+            b = float16ToNumber(view.getUint16(4, true));
+            a = float16ToNumber(view.getUint16(6, true));
+            break;
+        case 'r32float':
+            r = g = b = view.getFloat32(0, true);
+            break;
+        case 'rg32float':
+            r = view.getFloat32(0, true);
+            g = view.getFloat32(4, true);
+            break;
+        case 'rgba32float':
+            r = view.getFloat32(0, true);
+            g = view.getFloat32(4, true);
+            b = view.getFloat32(8, true);
+            a = view.getFloat32(12, true);
+            break;
+        default:
+            dst[dstOff] = dst[dstOff + 1] = dst[dstOff + 2] = 128;
+            dst[dstOff + 3] = 255;
+            return;
+    }
+
+    // Clamp [0, 1] and convert to 8-bit
+    dst[dstOff]     = Math.max(0, Math.min(255, (r * 255) | 0));
+    dst[dstOff + 1] = Math.max(0, Math.min(255, (g * 255) | 0));
+    dst[dstOff + 2] = Math.max(0, Math.min(255, (b * 255) | 0));
+    dst[dstOff + 3] = Math.max(0, Math.min(255, (a * 255) | 0));
+}
+
+/** Decode IEEE 754 half-precision float (16-bit). */
+function float16ToNumber(h: number): number {
+    const sign = (h >> 15) & 1;
+    const exp = (h >> 10) & 0x1F;
+    const mant = h & 0x3FF;
+
+    if (exp === 0) {
+        // Subnormal or zero
+        return (sign ? -1 : 1) * (mant / 1024) * Math.pow(2, -14);
+    }
+    if (exp === 0x1F) {
+        // Inf or NaN
+        return mant === 0 ? (sign ? -Infinity : Infinity) : NaN;
+    }
+    return (sign ? -1 : 1) * Math.pow(2, exp - 15) * (1 + mant / 1024);
+}
+
+/**
+ * Convert raw GPU texture pixels to a data URL thumbnail.
+ * Handles format conversion (bgra swap, float→8bit, single-channel expansion).
+ * Scales down to maxSize for compact storage.
+ */
+function pixelsToDataUrl(
+    rawData: Uint8Array,
+    width: number,
+    height: number,
+    bytesPerRow: number,
+    format: string,
+    maxSize: number,
+): string | null {
+    if (typeof document === 'undefined') return null;
+
+    // Step 1: Convert to RGBA8 array (full resolution)
+    const rgba = new Uint8Array(width * height * 4);
+    const bpp = bytesPerPixel(format);
+
+    for (let y = 0; y < height; y++) {
+        const srcRowOffset = y * bytesPerRow;
+        const dstRowOffset = y * width * 4;
+
+        for (let x = 0; x < width; x++) {
+            const srcOffset = srcRowOffset + x * bpp;
+            const dstOffset = dstRowOffset + x * 4;
+
+            convertPixel(rawData, srcOffset, rgba, dstOffset, format);
+        }
+    }
+
+    // Step 2: Draw to canvas (scaled down for thumbnail)
+    const scale = Math.min(1, maxSize / Math.max(width, height));
+    const thumbW = Math.max(1, Math.round(width * scale));
+    const thumbH = Math.max(1, Math.round(height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = thumbW;
+    canvas.height = thumbH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Create ImageData at full res, then draw scaled
+    const fullCanvas = document.createElement('canvas');
+    fullCanvas.width = width;
+    fullCanvas.height = height;
+    const fullCtx = fullCanvas.getContext('2d');
+    if (!fullCtx) return null;
+
+    const imageData = fullCtx.createImageData(width, height);
+    imageData.data.set(rgba);
+    fullCtx.putImageData(imageData, 0, 0);
+
+    ctx.drawImage(fullCanvas, 0, 0, thumbW, thumbH);
+
+    return canvas.toDataURL('image/png');
 }
 
 export class SpectorGPU {
@@ -669,11 +905,10 @@ export class SpectorGPU {
                 this._pendingScreenshot = this._captureCanvasScreenshot();
 
                 // Auto-stop after the first submit — captures exactly one frame.
-                // Use microtask to ensure all commands from this submit are fully
-                // recorded before we finalize.
+                // Use microtask, then perform async texture readback before finalizing.
                 Promise.resolve().then(() => {
                     if (this._isCapturing) {
-                        this.stopCapture();
+                        this._finalizeCapture();
                     }
                 });
             }
@@ -803,6 +1038,191 @@ export class SpectorGPU {
             // Silent fail — screenshot is best-effort.
             return null;
         }
+    }
+
+    // ── Async texture readback ───────────────────────────────────────
+
+    /** Maximum number of textures to read back per capture. */
+    private static readonly MAX_READBACK_TEXTURES = 32;
+    /** Maximum thumbnail dimension (px). Textures are scaled down to fit. */
+    private static readonly READBACK_THUMB_SIZE = 128;
+    /** Timeout for the entire readback operation (ms). */
+    private static readonly READBACK_TIMEOUT_MS = 5000;
+
+    /** Async finalization: readback textures, then build and emit capture. */
+    private async _finalizeCapture(): Promise<void> {
+        if (!this._isCapturing || !this._commandTree) return;
+
+        // Disarm capture FIRST to prevent our readback submit from
+        // triggering another capture cycle.
+        this._isCapturing = false;
+
+        try {
+            await this._readbackTextures();
+        } catch (e) {
+            Logger.warn('Texture readback failed:', e);
+            // Continue — capture still works without previews
+        }
+
+        try {
+            const capture = this._buildCapture();
+            this._clearCaptureState();
+            this.onCaptureComplete.trigger(capture);
+        } catch (e) {
+            this._clearCaptureState();
+            this.onCaptureError.trigger({ error: e });
+        }
+    }
+
+    /**
+     * Read back pixel data from GPU textures and store as preview data URLs.
+     *
+     * Strategy:
+     *   1. Iterate tracked textures, filter to readable ones
+     *   2. For each: create staging buffer, encode copyTextureToBuffer, submit
+     *   3. MapAsync all staging buffers in parallel
+     *   4. Read pixels, convert to RGBA8, draw to canvas, get data URL
+     *   5. Update RecorderManager with preview URLs
+     *   6. Destroy staging buffers
+     *
+     * Skips: canvas textures (already have screenshot), depth/stencil formats,
+     * MSAA textures, 1D/3D textures, compressed formats, zero-size textures.
+     *
+     * Uses ORIGINAL (unpatched) device methods via globalOriginStore to avoid
+     * polluting the capture with readback commands.
+     */
+    private async _readbackTextures(): Promise<void> {
+        const device = this._device;
+        if (!device) return;
+
+        const textures = this._recorderManager.getTextures();
+        if (textures.size === 0) return;
+
+        // Resolve original (unpatched) methods — readback must not appear in capture.
+        const origCreateBuffer = globalOriginStore.getOriginal(device, 'createBuffer');
+        const origCreateEncoder = globalOriginStore.getOriginal(device, 'createCommandEncoder');
+        const origQueueSubmit = globalOriginStore.getOriginal(device.queue, 'submit');
+        if (!origCreateBuffer || !origCreateEncoder || !origQueueSubmit) return;
+
+        const createBuffer = origCreateBuffer.bind(device) as GPUDevice['createBuffer'];
+        const createEncoder = origCreateEncoder.bind(device) as GPUDevice['createCommandEncoder'];
+        const queueSubmit = origQueueSubmit.bind(device.queue) as GPUQueue['submit'];
+
+        // Collect readable textures
+        const readable: Array<{ id: string; info: ITextureInfo; gpuTexture: GPUTexture }> = [];
+
+        for (const [id, info] of textures) {
+            if (readable.length >= SpectorGPU.MAX_READBACK_TEXTURES) break;
+
+            // Skip canvas textures (already have screenshot)
+            if (info.isCanvasTexture) continue;
+            // Skip non-2D
+            if (info.dimension !== '2d') continue;
+            // Skip MSAA
+            if (info.sampleCount > 1) continue;
+            // Skip zero-size
+            if (info.size.width === 0 || info.size.height === 0) continue;
+            // Skip unreadable formats
+            if (!isReadableFormat(info.format)) continue;
+            // Need COPY_SRC (should be present thanks to our before hook)
+            if (!(info.usage & 0x01)) continue;
+
+            // Resolve the actual GPUTexture object
+            const obj = this._recorderManager.getObject(id);
+            if (!obj) continue;
+
+            readable.push({ id, info, gpuTexture: obj as GPUTexture });
+        }
+
+        if (readable.length === 0) return;
+
+        Logger.info(`Reading back ${readable.length} textures...`);
+
+        // Build readback tasks: create staging buffers + encode copies
+        const tasks: Array<{
+            id: string;
+            info: ITextureInfo;
+            buffer: GPUBuffer;
+            bytesPerRow: number;
+            width: number;
+            height: number;
+        }> = [];
+
+        const encoder = createEncoder();
+
+        for (const { id, info, gpuTexture } of readable) {
+            try {
+                const bpp = bytesPerPixel(info.format);
+                if (bpp === 0) continue;
+
+                const width = info.size.width;
+                const height = info.size.height;
+                // WebGPU requires bytesPerRow aligned to 256
+                const bytesPerRow = Math.ceil((width * bpp) / 256) * 256;
+                const bufferSize = bytesPerRow * height;
+
+                if (bufferSize === 0 || bufferSize > 256 * 1024 * 1024) continue; // Skip >256MB
+
+                const buffer = createBuffer({
+                    size: bufferSize,
+                    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+                });
+
+                encoder.copyTextureToBuffer(
+                    { texture: gpuTexture, mipLevel: 0 },
+                    { buffer, bytesPerRow, rowsPerImage: height },
+                    { width, height, depthOrArrayLayers: 1 },
+                );
+
+                tasks.push({ id, info, buffer, bytesPerRow, width, height });
+            } catch (e) {
+                Logger.warn(`Readback setup failed for ${id}:`, e);
+            }
+        }
+
+        if (tasks.length === 0) return;
+
+        // Submit all copy commands at once via original queue.submit
+        queueSubmit([encoder.finish()]);
+
+        // Map all staging buffers in parallel, with a timeout
+        try {
+            await Promise.race([
+                Promise.all(tasks.map(t => t.buffer.mapAsync(GPUMapMode.READ))),
+                new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error('Readback timeout')), SpectorGPU.READBACK_TIMEOUT_MS)
+                ),
+            ]);
+        } catch (e) {
+            Logger.warn('Texture readback map failed:', e);
+            // Destroy staging buffers and bail
+            for (const t of tasks) {
+                try { t.buffer.destroy(); } catch { /* ignore */ }
+            }
+            return;
+        }
+
+        // Read pixels and generate thumbnails
+        for (const task of tasks) {
+            try {
+                const data = new Uint8Array(task.buffer.getMappedRange());
+                const dataUrl = pixelsToDataUrl(
+                    data, task.width, task.height,
+                    task.bytesPerRow, task.info.format,
+                    SpectorGPU.READBACK_THUMB_SIZE,
+                );
+                if (dataUrl) {
+                    this._recorderManager.setTexturePreview(task.id, dataUrl);
+                }
+            } catch (e) {
+                Logger.warn(`Readback read failed for ${task.id}:`, e);
+            } finally {
+                task.buffer.unmap();
+                task.buffer.destroy();
+            }
+        }
+
+        Logger.info(`Texture readback complete: ${tasks.length} textures`);
     }
 
     /** Build the ICapture from current tree + resource state. */
