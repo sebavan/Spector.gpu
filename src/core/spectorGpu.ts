@@ -295,10 +295,6 @@ function pixelsToDataUrl(
             const dstOffset = dstRowOffset + x * 4;
 
             convertPixel(rawData, srcOffset, rgba, dstOffset, format);
-            // Force alpha to fully opaque — many GPU textures have alpha=0
-            // (unused channel) which would produce invisible/black thumbnails
-            // when composited via drawImage or encoded to JPEG.
-            rgba[dstOffset + 3] = 255;
         }
     }
 
@@ -326,8 +322,7 @@ function pixelsToDataUrl(
 
     ctx.drawImage(fullCanvas, 0, 0, thumbW, thumbH);
 
-    // JPEG is ~5-10x smaller than PNG for photo-like GPU textures.
-    return canvas.toDataURL('image/jpeg', 0.7);
+    return canvas.toDataURL('image/png');
 }
 
 export class SpectorGPU {
@@ -339,6 +334,7 @@ export class SpectorGPU {
     // ── State ────────────────────────────────────────────────────────
     private _adapterInfo: IAdapterInfo | null = null;
     private _isCapturing = false;
+    private _isReadingBack = false;
     private _initialized = false;
     private _device: GPUDevice | null = null;
     private _captureStartTime = 0;
@@ -898,6 +894,7 @@ export class SpectorGPU {
         // ── Queue submit → record submit command (but don't auto-finalize) ──
 
         this._queueSpy.onSubmit.add(({ commandBuffers }) => {
+            if (this._isReadingBack) return; // Skip our own readback submits
             if (this._isCapturing && this._commandTree) {
                 this._commandTree.addCommand(
                     CommandType.Submit,
@@ -1093,7 +1090,7 @@ export class SpectorGPU {
      * Skips: canvas textures (already have screenshot), depth/stencil formats,
      * MSAA textures, 1D/3D textures, compressed formats, zero-size textures.
      *
-     * Uses ORIGINAL (unpatched) device methods via globalOriginStore to avoid
+     * Uses the device directly with _isReadingBack flag to prevent
      * polluting the capture with readback commands.
      */
     private async _readbackTextures(): Promise<void> {
@@ -1103,36 +1100,32 @@ export class SpectorGPU {
         const textures = this._recorderManager.getTextures();
         if (textures.size === 0) return;
 
-        // Resolve original (unpatched) methods — readback must not appear in capture.
-        const origCreateBuffer = globalOriginStore.getOriginal(device, 'createBuffer');
-        const origCreateEncoder = globalOriginStore.getOriginal(device, 'createCommandEncoder');
-        const origQueueSubmit = globalOriginStore.getOriginal(device.queue, 'submit');
-        if (!origCreateBuffer || !origCreateEncoder || !origQueueSubmit) return;
+        // Set flag so our own submit/createBuffer calls don't interfere.
+        this._isReadingBack = true;
 
-        const createBuffer = origCreateBuffer.bind(device) as GPUDevice['createBuffer'];
-        const createEncoder = origCreateEncoder.bind(device) as GPUDevice['createCommandEncoder'];
-        const queueSubmit = origQueueSubmit.bind(device.queue) as GPUQueue['submit'];
+        try {
+            await this._readbackTexturesImpl(device, textures);
+        } finally {
+            this._isReadingBack = false;
+        }
+    }
 
+    private async _readbackTexturesImpl(
+        device: GPUDevice,
+        textures: ReadonlyMap<string, ITextureInfo>,
+    ): Promise<void> {
         // Collect readable textures
         const readable: Array<{ id: string; info: ITextureInfo; gpuTexture: GPUTexture }> = [];
 
         for (const [id, info] of textures) {
             if (readable.length >= SpectorGPU.MAX_READBACK_TEXTURES) break;
-
-            // Skip canvas textures (already have screenshot)
             if (info.isCanvasTexture) continue;
-            // Skip non-2D
             if (info.dimension !== '2d') continue;
-            // Skip MSAA
             if (info.sampleCount > 1) continue;
-            // Skip zero-size
             if (info.size.width === 0 || info.size.height === 0) continue;
-            // Skip unreadable formats
             if (!isReadableFormat(info.format)) continue;
-            // Need COPY_SRC (should be present thanks to our before hook)
-            if (!(info.usage & 0x01)) continue;
+            if (!(info.usage & 0x01)) continue; // COPY_SRC
 
-            // Resolve the actual GPUTexture object
             const obj = this._recorderManager.getObject(id);
             if (!obj) continue;
 
@@ -1143,7 +1136,9 @@ export class SpectorGPU {
 
         Logger.info(`Reading back ${readable.length} textures...`);
 
-        // Build readback tasks: create staging buffers + encode copies
+        // Use validation error scope to detect copy failures
+        device.pushErrorScope('validation');
+
         const tasks: Array<{
             id: string;
             info: ITextureInfo;
@@ -1153,7 +1148,7 @@ export class SpectorGPU {
             height: number;
         }> = [];
 
-        const encoder = createEncoder();
+        const encoder = device.createCommandEncoder();
 
         for (const { id, info, gpuTexture } of readable) {
             try {
@@ -1162,13 +1157,12 @@ export class SpectorGPU {
 
                 const width = info.size.width;
                 const height = info.size.height;
-                // WebGPU requires bytesPerRow aligned to 256
                 const bytesPerRow = Math.ceil((width * bpp) / 256) * 256;
                 const bufferSize = bytesPerRow * height;
 
-                if (bufferSize === 0 || bufferSize > 256 * 1024 * 1024) continue; // Skip >256MB
+                if (bufferSize === 0 || bufferSize > 64 * 1024 * 1024) continue;
 
-                const buffer = createBuffer({
+                const buffer = device.createBuffer({
                     size: bufferSize,
                     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
                 });
@@ -1185,10 +1179,22 @@ export class SpectorGPU {
             }
         }
 
-        if (tasks.length === 0) return;
+        if (tasks.length === 0) {
+            await device.popErrorScope();
+            return;
+        }
 
-        // Submit all copy commands at once via original queue.submit
-        queueSubmit([encoder.finish()]);
+        device.queue.submit([encoder.finish()]);
+
+        // Check for validation errors from the copy commands
+        const validationError = await device.popErrorScope();
+        if (validationError) {
+            Logger.warn('Texture readback validation error:', (validationError as GPUValidationError).message);
+            for (const t of tasks) {
+                try { t.buffer.destroy(); } catch { /* ignore */ }
+            }
+            return;
+        }
 
         // Map all staging buffers in parallel, with a timeout
         try {
@@ -1200,7 +1206,6 @@ export class SpectorGPU {
             ]);
         } catch (e) {
             Logger.warn('Texture readback map failed:', e);
-            // Destroy staging buffers and bail
             for (const t of tasks) {
                 try { t.buffer.destroy(); } catch { /* ignore */ }
             }
@@ -1209,7 +1214,7 @@ export class SpectorGPU {
 
         // Read pixels and generate thumbnails (with total size budget)
         let totalPreviewBytes = 0;
-        const MAX_PREVIEW_BYTES = 2 * 1024 * 1024; // 2 MB total budget
+        const MAX_PREVIEW_BYTES = 4 * 1024 * 1024; // 4 MB total budget
 
         for (const task of tasks) {
             try {
