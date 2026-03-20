@@ -26,6 +26,10 @@ export class CanvasSpy {
 
         const self = this;
 
+        // Reentrancy guard — prevents infinite recursion when other tools
+        // (e.g. Spector.js embedded in Babylon playground) also patch getContext.
+        let inGetContext = false;
+
         // Patch HTMLCanvasElement.prototype.getContext
         if (typeof HTMLCanvasElement !== 'undefined') {
             this._originalGetContext = HTMLCanvasElement.prototype.getContext;
@@ -36,15 +40,23 @@ export class CanvasSpy {
                 contextId: string,
                 ...rest: any[]
             ): RenderingContext | null {
-                const result = origGetContext.call(this, contextId, ...rest);
-                if (contextId === 'webgpu' && result) {
-                    Logger.info('WebGPU context created on canvas');
-                    self.onWebGPUContextCreated.trigger({
-                        canvas: this,
-                        context: result as unknown as GPUCanvasContext,
-                    });
+                if (inGetContext) {
+                    return origGetContext.call(this, contextId, ...rest);
                 }
-                return result;
+                inGetContext = true;
+                try {
+                    const result = origGetContext.call(this, contextId, ...rest);
+                    if (contextId === 'webgpu' && result) {
+                        Logger.info('WebGPU context created on canvas');
+                        self.onWebGPUContextCreated.trigger({
+                            canvas: this,
+                            context: result as unknown as GPUCanvasContext,
+                        });
+                    }
+                    return result;
+                } finally {
+                    inGetContext = false;
+                }
             } as any;
         }
 
@@ -58,15 +70,23 @@ export class CanvasSpy {
                 contextId: string,
                 ...rest: any[]
             ): OffscreenRenderingContext | null {
-                const result = origOffscreen.call(this, contextId, ...rest);
-                if (contextId === 'webgpu' && result) {
-                    Logger.info('WebGPU context created on OffscreenCanvas');
-                    self.onWebGPUContextCreated.trigger({
-                        canvas: this,
-                        context: result as unknown as GPUCanvasContext,
-                    });
+                if (inGetContext) {
+                    return origOffscreen.call(this, contextId, ...rest);
                 }
-                return result;
+                inGetContext = true;
+                try {
+                    const result = origOffscreen.call(this, contextId, ...rest);
+                    if (contextId === 'webgpu' && result) {
+                        Logger.info('WebGPU context created on OffscreenCanvas');
+                        self.onWebGPUContextCreated.trigger({
+                            canvas: this,
+                            context: result as unknown as GPUCanvasContext,
+                        });
+                    }
+                    return result;
+                } finally {
+                    inGetContext = false;
+                }
             } as any;
         }
 
