@@ -118,9 +118,15 @@ export class DeviceSpy {
                 // Add COPY_SRC so we can read back buffer data.
                 // CRITICAL: clone the descriptor — mutating the app's object
                 // breaks engines that inspect usage after createBuffer.
+                // Skip MAP_READ/MAP_WRITE buffers — COPY_SRC is incompatible
+                // with mappable buffers and causes WebGPU validation errors.
                 const desc = args[0] as Record<string, unknown> | undefined;
                 if (desc && typeof desc.usage === 'number') {
-                    return [{ ...desc, usage: (desc.usage as number) | 0x01 }]; // COPY_SRC
+                    const usage = desc.usage as number;
+                    const isMappable = !!(usage & (0x0001 | 0x0002)); // MAP_READ | MAP_WRITE
+                    if (!isMappable) {
+                        return [{ ...desc, usage: usage | 0x04 }]; // COPY_SRC = 0x04 for buffers
+                    }
                 }
             },
             after(methodName, args, result) {

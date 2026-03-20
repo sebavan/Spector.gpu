@@ -1339,7 +1339,7 @@ export class SpectorGPU {
                 if (info.state === 'destroyed') continue;
                 if (this._recorderManager.isBufferDestroyed(id)) continue;
                 if (info.size === 0 || info.size > SpectorGPU.MAX_BUFFER_READBACK_SIZE) continue;
-                if (!(info.usage & 0x01)) continue; // COPY_SRC
+                if (!(info.usage & 0x0004)) continue; // GPUBufferUsage.COPY_SRC
                 // Skip mapped buffers — can't be used as copy source while mapped
                 if (info.state === 'mapped' || info.state === 'mapping-pending') continue;
 
