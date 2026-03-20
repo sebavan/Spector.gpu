@@ -232,6 +232,17 @@ export class RecorderManager {
         return this._destroyedTextures.has(textureId);
     }
 
+    /** Check if any texture view of this texture uses a cube dimension. */
+    public hasTextureCubeView(textureId: string): boolean {
+        for (const view of this._textureViews.values()) {
+            if (view.textureId === textureId &&
+                (view.dimension === 'cube' || view.dimension === 'cube-array')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ─── Texture View ────────────────────────────────────────────────
 
     public recordTextureViewCreation(view: object, texture: object, descriptor: any): string {
