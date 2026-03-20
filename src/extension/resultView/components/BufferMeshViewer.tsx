@@ -32,6 +32,7 @@ export default function BufferMeshViewer({
     isIndex: boolean;
 }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const disposedRef = useRef(false);
     const [error, setError] = useState<string | null>(null);
 
     // Resolve vertex layout from capture pipelines
@@ -42,6 +43,7 @@ export default function BufferMeshViewer({
 
     useEffect(() => {
         const canvas = canvasRef.current;
+        disposedRef.current = false;
         if (!canvas || !rawData) return;
 
         if (isIndex) {
@@ -92,11 +94,12 @@ export default function BufferMeshViewer({
 
             engine.runRenderLoop(() => scene.render());
 
-            const onResize = () => engine!.resize();
+            const onResize = () => { if (!disposedRef.current && engine) engine.resize(); };
             window.addEventListener('resize', onResize);
 
             const eng = engine;
             return () => {
+                disposedRef.current = true;
                 window.removeEventListener('resize', onResize);
                 eng.dispose();
             };
