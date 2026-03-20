@@ -52,7 +52,9 @@ chrome.runtime.onMessage.addListener((message: IMessage, sender, sendResponse) =
                         128: 'icons/icon128-active.png',
                     },
                 }).catch(() => {});
-                chrome.action.setBadgeText({ tabId, text: '' }).catch(() => {});
+                // Native Chrome badge — renders crisp "GPU" pill on toolbar icon
+                chrome.action.setBadgeText({ tabId, text: 'GPU' }).catch(() => {});
+                chrome.action.setBadgeBackgroundColor({ tabId, color: '#2196f3' }).catch(() => {});
             }
             break;
         }
