@@ -1,8 +1,9 @@
 import React from 'react';
-import type { ICapture, ICommandNode, IShaderModuleInfo, ITextureInfo, ITextureViewInfo } from '@shared/types';
+import type { IBufferInfo, ICapture, ICommandNode, IShaderModuleInfo, ITextureInfo, ITextureViewInfo } from '@shared/types';
 import { resolveMapEntry } from '../resourceMapHelpers';
 import { highlightWGSL } from './wgslHighlighter';
 import { JsonTree } from './JsonTree';
+import { BufferDetail } from './BufferDetail';
 
 // ── Detect shader stages from WGSL source ─────────────────────────────
 
@@ -231,6 +232,10 @@ export function ResourceDetail({ category, resource, capture }: ResourceDetailPr
 
     if (category === 'textureViews') {
         return <TextureViewDetail view={resource as ITextureViewInfo} capture={capture} />;
+    }
+
+    if (category === 'buffers') {
+        return <BufferDetail buffer={resource as IBufferInfo} capture={capture} />;
     }
 
     return <JsonTree data={resource} />;

@@ -1018,3 +1018,87 @@ $gutter-width: 48px;
     padding: 20px;
     text-align: center;
 }
+
+// ─── Buffer detail ───────────────────────────────────────────────────
+
+.buffer-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.buffer-info-grid {
+    display: grid;
+    grid-template-columns: 70px 1fr;
+    gap: 4px 8px;
+    font-size: 12px;
+
+    .buf-label { color: $text-muted; }
+    .buf-value { color: $text-primary; font-family: 'Cascadia Code', 'Consolas', monospace; }
+    .buf-usage { color: $accent; font-size: 11px; }
+}
+
+.buffer-no-data {
+    color: $text-muted;
+    font-size: 12px;
+    padding: 12px;
+    text-align: center;
+}
+
+// ─── Hex dump ────────────────────────────────────────────────────────
+
+.hex-dump-section {
+    h4 {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: $text-muted;
+        margin-bottom: 6px;
+        letter-spacing: 0.5px;
+    }
+}
+
+.hex-dump {
+    background: $bg-tertiary;
+    border: 1px solid $border;
+    border-radius: 2px;
+    padding: 10px 12px;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    color: $text-primary;
+    overflow: auto;
+    max-height: 300px;
+    white-space: pre;
+    tab-size: 4;
+}
+
+// ─── 3D Mesh viewer ──────────────────────────────────────────────────
+
+.mesh-viewer-section {
+    h4 {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: $text-muted;
+        margin-bottom: 6px;
+        letter-spacing: 0.5px;
+    }
+}
+
+.mesh-viewer-canvas {
+    width: 100%;
+    height: 300px;
+    border: 1px solid $border;
+    border-radius: 2px;
+    outline: none;
+}
+
+.mesh-viewer-loading,
+.mesh-viewer-error {
+    color: $text-muted;
+    font-size: 12px;
+    padding: 20px;
+    text-align: center;
+    background: $bg-tertiary;
+    border: 1px solid $border;
+    border-radius: 2px;
+}
