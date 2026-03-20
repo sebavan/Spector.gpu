@@ -1248,8 +1248,10 @@ export class SpectorGPU {
         let totalPreviewBytes = 0;
         const MAX_PREVIEW_BYTES = 4 * 1024 * 1024;
 
+        let budgetExceeded = false;
         for (const task of tasks) {
             try {
+                if (budgetExceeded) continue; // Skip preview work; finally block still cleans up
                 if (task.layers === 1) {
                     // Single layer — standard readback
                     const data = new Uint8Array(task.buffers[0].getMappedRange());
@@ -1262,8 +1264,7 @@ export class SpectorGPU {
                         totalPreviewBytes += dataUrl.length;
                         if (totalPreviewBytes > MAX_PREVIEW_BYTES) {
                             Logger.warn('Preview size budget exceeded, skipping remaining textures');
-                            for (const b of task.buffers) { try { b.unmap(); } catch {} b.destroy(); }
-                            break;
+                            budgetExceeded = true; continue;
                         }
                         this._recorderManager.setTexturePreview(task.id, dataUrl);
                     }
@@ -1282,8 +1283,7 @@ export class SpectorGPU {
                     }
                     if (totalPreviewBytes > MAX_PREVIEW_BYTES) {
                         Logger.warn('Preview size budget exceeded, skipping remaining textures');
-                        for (const b of task.buffers) { try { b.unmap(); } catch {} b.destroy(); }
-                        break;
+                        budgetExceeded = true; continue;
                     }
                     // Also set the first face as the main preview
                     if (faceUrls[0]) {
