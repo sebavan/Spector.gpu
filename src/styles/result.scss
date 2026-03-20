@@ -671,6 +671,47 @@ $gutter-width: 48px;
     }
 }
 
+// ─── Cube face grid ──────────────────────────────────────────────────
+
+.cube-face-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 8px;
+    max-width: 420px;
+}
+
+.cube-face {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+
+    .cube-face-img {
+        width: 100%;
+        aspect-ratio: 1;
+        object-fit: cover;
+        border: 1px solid $border;
+        border-radius: 2px;
+    }
+
+    .cube-face-placeholder {
+        width: 100%;
+        aspect-ratio: 1;
+        background: $bg-tertiary;
+        border: 1px solid $border;
+        border-radius: 2px;
+    }
+
+    .cube-face-label {
+        font-size: 10px;
+        font-weight: 600;
+        color: $text-muted;
+        font-family: 'Cascadia Code', 'Consolas', monospace;
+        letter-spacing: 0.5px;
+    }
+}
+
 // ─── Texture info grid ───────────────────────────────────────────────
 
 .texture-info-grid {

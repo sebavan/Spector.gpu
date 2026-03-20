@@ -325,68 +325,6 @@ function pixelsToDataUrl(
     return canvas.toDataURL('image/png');
 }
 
-/**
- * Composite 6 cube faces into a 3×2 grid thumbnail.
- * Layout: [+X][-X][+Y] / [-Y][+Z][-Z]
- */
-function cubeFacesToDataUrl(
-    faceData: Uint8Array[],
-    faceWidth: number,
-    faceHeight: number,
-    bytesPerRow: number,
-    format: string,
-    maxFaceSize: number,
-): string | null {
-    if (typeof document === 'undefined' || faceData.length < 6) return null;
-
-    const bpp = bytesPerPixel(format);
-    const scale = Math.min(1, maxFaceSize / Math.max(faceWidth, faceHeight));
-    const thumbFace = Math.max(1, Math.round(Math.max(faceWidth, faceHeight) * scale));
-
-    // Full-res face canvas (reused for each face)
-    const faceCanvas = document.createElement('canvas');
-    faceCanvas.width = faceWidth;
-    faceCanvas.height = faceHeight;
-    const faceCtx = faceCanvas.getContext('2d');
-    if (!faceCtx) return null;
-
-    // Output: 3 columns × 2 rows
-    const cols = 3;
-    const rows = 2;
-    const outCanvas = document.createElement('canvas');
-    outCanvas.width = thumbFace * cols;
-    outCanvas.height = thumbFace * rows;
-    const outCtx = outCanvas.getContext('2d');
-    if (!outCtx) return null;
-
-    // Dark background for gaps
-    outCtx.fillStyle = '#0a0a0f';
-    outCtx.fillRect(0, 0, outCanvas.width, outCanvas.height);
-
-    for (let face = 0; face < 6; face++) {
-        const raw = faceData[face];
-        const rgba = new Uint8Array(faceWidth * faceHeight * 4);
-
-        for (let y = 0; y < faceHeight; y++) {
-            const srcRow = y * bytesPerRow;
-            const dstRow = y * faceWidth * 4;
-            for (let x = 0; x < faceWidth; x++) {
-                convertPixel(raw, srcRow + x * bpp, rgba, dstRow + x * 4, format);
-            }
-        }
-
-        const imageData = faceCtx.createImageData(faceWidth, faceHeight);
-        imageData.data.set(rgba);
-        faceCtx.putImageData(imageData, 0, 0);
-
-        const col = face % cols;
-        const row = (face / cols) | 0;
-        outCtx.drawImage(faceCanvas, col * thumbFace, row * thumbFace, thumbFace, thumbFace);
-    }
-
-    return outCanvas.toDataURL('image/png');
-}
-
 export class SpectorGPU {
     // ── Public observables ───────────────────────────────────────────
     public readonly onWebGPUDetected = new Observable<IAdapterInfo>();
@@ -1291,32 +1229,43 @@ export class SpectorGPU {
                 if (task.layers === 1) {
                     // Single layer — standard readback
                     const data = new Uint8Array(task.buffers[0].getMappedRange());
-                    dataUrl = pixelsToDataUrl(
+                    const dataUrl = pixelsToDataUrl(
                         data, task.width, task.height,
                         task.bytesPerRow, task.info.format,
                         SpectorGPU.READBACK_THUMB_SIZE,
                     );
-                } else {
-                    // Multi-layer (cubemap) — composite all faces into a grid
-                    const faceDataArrays: Uint8Array[] = [];
-                    for (const buf of task.buffers) {
-                        faceDataArrays.push(new Uint8Array(buf.getMappedRange()));
+                    if (dataUrl) {
+                        totalPreviewBytes += dataUrl.length;
+                        if (totalPreviewBytes > MAX_PREVIEW_BYTES) {
+                            Logger.warn('Preview size budget exceeded, skipping remaining textures');
+                            for (const b of task.buffers) { try { b.unmap(); } catch {} b.destroy(); }
+                            break;
+                        }
+                        this._recorderManager.setTexturePreview(task.id, dataUrl);
                     }
-                    dataUrl = cubeFacesToDataUrl(
-                        faceDataArrays, task.width, task.height,
-                        task.bytesPerRow, task.info.format,
-                        SpectorGPU.READBACK_THUMB_SIZE,
-                    );
-                }
-
-                if (dataUrl) {
-                    totalPreviewBytes += dataUrl.length;
+                } else {
+                    // Multi-layer (cubemap) — generate individual face previews
+                    const faceUrls: string[] = [];
+                    for (const buf of task.buffers) {
+                        const data = new Uint8Array(buf.getMappedRange());
+                        const url = pixelsToDataUrl(
+                            data, task.width, task.height,
+                            task.bytesPerRow, task.info.format,
+                            SpectorGPU.READBACK_THUMB_SIZE,
+                        );
+                        faceUrls.push(url ?? '');
+                        if (url) totalPreviewBytes += url.length;
+                    }
                     if (totalPreviewBytes > MAX_PREVIEW_BYTES) {
                         Logger.warn('Preview size budget exceeded, skipping remaining textures');
                         for (const b of task.buffers) { try { b.unmap(); } catch {} b.destroy(); }
                         break;
                     }
-                    this._recorderManager.setTexturePreview(task.id, dataUrl);
+                    // Also set the first face as the main preview
+                    if (faceUrls[0]) {
+                        this._recorderManager.setTexturePreview(task.id, faceUrls[0]);
+                    }
+                    this._recorderManager.setTextureFacePreviews(task.id, faceUrls);
                 }
             } catch (e) {
                 Logger.warn(`Readback read failed for ${task.id}:`, e);

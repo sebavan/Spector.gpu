@@ -98,14 +98,15 @@ export function TextureThumbnail({ texture, capture }: { texture: ITextureInfo; 
     if (usage & 0x08) usageFlags.push('STORAGE_BINDING');
     if (usage & 0x10) usageFlags.push('RENDER_ATTACHMENT');
 
-    // Only show the canvas screenshot for the actual canvas texture,
-    // not for all render targets (depth buffers, shadow maps, G-buffers, etc.)
+    // Only show the canvas screenshot for the actual canvas texture
     let previewUrl: string | null = null;
     if (texture.previewDataUrl) {
         previewUrl = texture.previewDataUrl;
     } else if (texture.isCanvasTexture) {
         previewUrl = findVisualOutput(capture.commands);
     }
+
+    const hasFaces = texture.facePreviewUrls && texture.facePreviewUrls.length > 0;
 
     // Pick a background color based on texture format
     const bgColor = format.includes('depth')
@@ -125,7 +126,9 @@ export function TextureThumbnail({ texture, capture }: { texture: ITextureInfo; 
 
     return (
         <div className="texture-thumbnail-container">
-            {previewUrl ? (
+            {hasFaces ? (
+                <CubeFaceGrid faces={texture.facePreviewUrls!} />
+            ) : previewUrl ? (
                 <img src={previewUrl} alt="texture preview" className="texture-preview-img" />
             ) : (
                 <div
@@ -159,6 +162,27 @@ export function TextureThumbnail({ texture, capture }: { texture: ITextureInfo; 
                 <span className="tex-label">Usage:</span>
                 <span className="tex-value tex-usage">{usageFlags.join(' | ') || 'none'}</span>
             </div>
+        </div>
+    );
+}
+
+// ── Cube face grid with labels ────────────────────────────────────────
+
+const FACE_LABELS = ['+X', '−X', '+Y', '−Y', '+Z', '−Z'] as const;
+
+function CubeFaceGrid({ faces }: { faces: readonly string[] }) {
+    return (
+        <div className="cube-face-grid">
+            {faces.map((url, i) => (
+                <div key={i} className="cube-face">
+                    {url ? (
+                        <img src={url} alt={FACE_LABELS[i] ?? `Face ${i}`} className="cube-face-img" />
+                    ) : (
+                        <div className="cube-face-placeholder" />
+                    )}
+                    <span className="cube-face-label">{FACE_LABELS[i] ?? `L${i}`}</span>
+                </div>
+            ))}
         </div>
     );
 }

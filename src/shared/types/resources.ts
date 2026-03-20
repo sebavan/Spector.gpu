@@ -50,6 +50,8 @@ export interface ITextureInfo {
     readonly isCanvasTexture?: boolean;
     /** Base64 data-URL preview; populated only after readback. */
     readonly previewDataUrl?: string;
+    /** Per-face previews for cube textures (6 entries: +X, -X, +Y, -Y, +Z, -Z). */
+    readonly facePreviewUrls?: readonly string[];
 }
 
 export interface ITextureViewInfo {

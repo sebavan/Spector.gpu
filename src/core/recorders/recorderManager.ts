@@ -88,6 +88,14 @@ export class RecorderManager {
         }
     }
 
+    /** Set per-face preview URLs for a cube texture. */
+    public setTextureFacePreviews(textureId: string, faceUrls: string[]): void {
+        const info = this._textures.get(textureId);
+        if (info) {
+            this._textures.set(textureId, { ...info, facePreviewUrls: faceUrls });
+        }
+    }
+
     /**
      * Safely resolve a value to a tracking ID. Guards against non-object
      * values (strings like 'auto', undefined, null) that would throw on
