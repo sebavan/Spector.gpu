@@ -1,5 +1,5 @@
 /**
- * Core capture data types for SpectorGPU.
+ * Core capture data types for Spector.GPU.
  *
  * Models the complete state of a single captured WebGPU frame:
  * the command tree, device metadata, resource inventory, and stats.
@@ -112,7 +112,7 @@ export interface ICommandNode {
 /** Complete snapshot of one captured frame. */
 export interface ICapture {
     readonly id: string;
-    /** SpectorGPU semver at time of capture. */
+    /** Spector.GPU semver at time of capture. */
     readonly version: string;
     /** Unix-epoch ms when capture started. */
     readonly timestamp: number;

@@ -1,5 +1,5 @@
 /**
- * SpectorGPU Background Service Worker
+ * Spector.GPU Background Service Worker
  *
  * Routes messages between content scripts (MAIN ↔ ISOLATED proxy) and
  * the popup / result-view UI. Maintains per-tab state (WebGPU detection,
@@ -73,7 +73,7 @@ chrome.runtime.onMessage.addListener((message: IMessage, sender, sendResponse) =
                 const payload = message.payload as ICaptureCompletePayload;
                 state.lastCaptureId = payload.captureId;
 
-                // Open result view — reuse an existing SpectorGPU result tab if one exists
+                // Open result view — reuse an existing Spector.GPU result tab if one exists
                 const resultUrl = chrome.runtime.getURL('result.html');
                 chrome.tabs.query({ url: resultUrl + '*' }, (existingTabs) => {
                     const targetUrl = `${resultUrl}?captureId=${payload.captureId}&tabId=${tabId}`;
@@ -81,10 +81,10 @@ chrome.runtime.onMessage.addListener((message: IMessage, sender, sendResponse) =
                         // Reuse the first existing result tab
                         const existingTab = existingTabs[0];
                         chrome.tabs.update(existingTab.id!, { url: targetUrl, active: true })
-                            .catch(e => console.error('[SpectorGPU] Failed to update result tab:', e));
+                            .catch(e => console.error('[Spector.GPU] Failed to update result tab:', e));
                     } else {
                         chrome.tabs.create({ url: targetUrl })
-                            .catch(e => console.error('[SpectorGPU] Failed to open result tab:', e));
+                            .catch(e => console.error('[Spector.GPU] Failed to open result tab:', e));
                     }
                 });
             }
@@ -106,7 +106,7 @@ chrome.runtime.onMessage.addListener((message: IMessage, sender, sendResponse) =
                 chrome.tabs.sendMessage(tabId, {
                     type: MessageType.START_CAPTURE,
                     payload: message.payload,
-                }).catch(e => console.error('[SpectorGPU] Failed to send capture request:', e));
+                }).catch(e => console.error('[Spector.GPU] Failed to send capture request:', e));
             }
             break;
         }
@@ -134,7 +134,7 @@ chrome.runtime.onMessage.addListener((message: IMessage, sender, sendResponse) =
                 // re-serialize as best-effort.
                 const jsonStr = typeof data === 'string' ? data : JSON.stringify(data);
                 writeCapture(captureId, jsonStr).catch(e =>
-                    console.error('[SpectorGPU] Failed to store capture:', e),
+                    console.error('[Spector.GPU] Failed to store capture:', e),
                 );
             }
             break;
@@ -159,4 +159,4 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     }
 });
 
-console.log('[SpectorGPU] Background service worker started');
+console.log('[Spector.GPU] Background service worker started');

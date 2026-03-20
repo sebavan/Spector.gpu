@@ -1,5 +1,5 @@
 /**
- * Comprehensive WebGPU API mock for SpectorGPU testing.
+ * Comprehensive WebGPU API mock for Spector.GPU testing.
  *
  * Simulates the full WebGPU API surface with:
  * - Call tracking (__calls: MockCall[]) on every mock object

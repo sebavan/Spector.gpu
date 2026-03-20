@@ -49,12 +49,12 @@ test.describe('Real WebGPU Site Capture', () => {
         const sampleFrame = page.frames().find((f) => f.url().includes('/sample/'));
         expect(sampleFrame, 'Sample iframe not found — page structure may have changed').toBeDefined();
 
-        // SpectorGPU should be active in the iframe (injected via all_frames: true
+        // Spector.GPU should be active in the iframe (injected via all_frames: true
         // or via addInitScript which propagates to frames).
         const spectorActive = await sampleFrame!.evaluate(() => {
             return !!(window as any).__spectorGpuInstance;
         });
-        expect(spectorActive, 'SpectorGPU not injected into sample iframe').toBe(true);
+        expect(spectorActive, 'Spector.GPU not injected into sample iframe').toBe(true);
 
         // Allow time for late-detection prototype spy to trigger on the
         // next createCommandEncoder / frame cycle.
@@ -77,7 +77,7 @@ test.describe('Real WebGPU Site Capture', () => {
                 );
                 const s = (window as any).__spectorGpuInstance;
                 if (!s) {
-                    reject(new Error('No SpectorGPU instance'));
+                    reject(new Error('No Spector.GPU instance'));
                     return;
                 }
 

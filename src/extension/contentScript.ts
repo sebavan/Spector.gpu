@@ -1,5 +1,5 @@
 /**
- * SpectorGPU Content Script — MAIN world
+ * Spector.GPU Content Script — MAIN world
  *
  * Runs in the page's JavaScript context (MAIN world) so it has direct
  * access to navigator.gpu, GPUDevice, and all WebGPU objects.
@@ -109,4 +109,4 @@ function sendToExtension(type: string, payload: unknown): void {
 // Auto-initialize on injection.
 init();
 
-console.log('[SpectorGPU] Content script (MAIN) loaded');
+console.log('[Spector.GPU] Content script (MAIN) loaded');

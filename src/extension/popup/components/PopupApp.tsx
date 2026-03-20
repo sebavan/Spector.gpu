@@ -64,7 +64,7 @@ export function PopupApp(): React.JSX.Element {
             <div className="popup-header">
                 <div className="logo">
                     <span className="logo-icon">◆</span>
-                    <span className="logo-text">SpectorGPU</span>
+                    <span className="logo-text">Spector.GPU</span>
                 </div>
             </div>
 
@@ -120,13 +120,13 @@ export function PopupApp(): React.JSX.Element {
                 {!detected && (
                     <div className="hint">
                         Navigate to a page using WebGPU to enable capture.
-                        Try reloading if the page loaded before SpectorGPU.
+                        Try reloading if the page loaded before Spector.GPU.
                     </div>
                 )}
             </div>
 
             <div className="popup-footer">
-                <span>SpectorGPU v0.1.0</span>
+                <span>Spector.GPU v0.1.0</span>
             </div>
         </div>
     );

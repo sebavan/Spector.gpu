@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 import path from 'path';
 
 /**
- * Playwright configuration for SpectorGPU E2E tests.
+ * Playwright configuration for Spector.GPU E2E tests.
  *
  * Key constraints:
  *  - WebGPU requires headed mode (no headless GPU context in most CI).

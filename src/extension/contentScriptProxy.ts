@@ -1,12 +1,12 @@
 /**
- * SpectorGPU Content Script Proxy — ISOLATED world
+ * Spector.GPU Content Script Proxy — ISOLATED world
  *
  * Bridges messages between the MAIN world content script (which has
  * access to navigator.gpu) and the extension's background service worker.
  *
  * MAIN world ←→ window.postMessage (prefixed) ←→ this proxy ←→ chrome.runtime
  *
- * All SpectorGPU messages are prefixed with SPECTOR_GPU_ to avoid
+ * All Spector.GPU messages are prefixed with SPECTOR_GPU_ to avoid
  * collisions with other window.postMessage traffic on the page.
  */
 
@@ -31,7 +31,7 @@ window.addEventListener('message', (event: MessageEvent) => {
     chrome.runtime.sendMessage(message).catch((e: unknown) => {
         // Extension context invalidated (e.g. extension reloaded) — swallow.
         if (e instanceof Error && e.message.includes('Extension context invalidated')) return;
-        console.error('[SpectorGPU Proxy] Failed to send to background:', e);
+        console.error('[Spector.GPU Proxy] Failed to send to background:', e);
     });
 });
 
@@ -48,4 +48,4 @@ chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
     );
 });
 
-console.log('[SpectorGPU] Content script proxy (ISOLATED) loaded');
+console.log('[Spector.GPU] Content script proxy (ISOLATED) loaded');

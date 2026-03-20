@@ -1,5 +1,5 @@
 {
-  "name": "spector-gpu",
+  "name": "spector.gpu",
   "version": "0.1.0",
   "description": "WebGPU Inspector — Chrome extension for debugging WebGPU applications",
   "private": true,

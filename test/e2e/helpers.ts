@@ -1,5 +1,5 @@
 /**
- * E2E test helpers for SpectorGPU.
+ * E2E test helpers for Spector.GPU.
  *
  * Provides Chrome launch (with extension), fixture URLs, and capture
  * trigger/wait utilities that work with the extension's actual message
@@ -30,7 +30,7 @@ const CONTENT_SCRIPT_SOURCE = readFileSync(CONTENT_SCRIPT_PATH, 'utf-8');
 // ── Browser launch ───────────────────────────────────────────────────
 
 /**
- * Launch Chrome with the SpectorGPU extension loaded.
+ * Launch Chrome with the Spector.GPU extension loaded.
  *
  * Uses launchPersistentContext because Chrome extension loading
  * requires --load-extension, which is only available with a persistent

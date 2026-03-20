@@ -21,7 +21,7 @@ export class Observable<T> {
             try {
                 listener(data);
             } catch (e) {
-                console.error('[SpectorGPU] Observable listener error:', e);
+                console.error('[Spector.GPU] Observable listener error:', e);
             }
         }
     }

@@ -9,7 +9,7 @@
  * BEFORE returning it to the caller, guaranteeing interception.
  *
  * Verifies:
- *   1. Content script injects and SpectorGPU initialises.
+ *   1. Content script injects and Spector.GPU initialises.
  *   2. WebGPU adapter is detected (requestAdapter hook fires).
  *   3. Device is discovered via the inline requestDevice wrapper.
  *   4. Frame capture produces valid stats (≥1 draw call, ≥1 render pass).
@@ -55,10 +55,10 @@ test.describe('Babylon.js Playground Capture', () => {
         // rendering canvas to be active.
         await page.waitForTimeout(10_000);
 
-        // ── Verify SpectorGPU is injected ────────────────────────────
+        // ── Verify Spector.GPU is injected ────────────────────────────
 
         // Babylon.js Playground may use iframes. Find the frame with
-        // SpectorGPU injected — it could be the main frame or an iframe.
+        // Spector.GPU injected — it could be the main frame or an iframe.
         let targetFrame = page;
         const spectorInMain = await page.evaluate(() => {
             return !!(window as any).__spectorGpuInstance;
@@ -85,7 +85,7 @@ test.describe('Babylon.js Playground Capture', () => {
         const spectorActive = await targetFrame.evaluate(() => {
             return !!(window as any).__spectorGpuInstance;
         });
-        expect(spectorActive, 'SpectorGPU not injected').toBe(true);
+        expect(spectorActive, 'Spector.GPU not injected').toBe(true);
 
         // ── Verify WebGPU detected (adapter hook fired) ──────────────
 
@@ -115,7 +115,7 @@ test.describe('Babylon.js Playground Capture', () => {
                 );
                 const s = (window as any).__spectorGpuInstance;
                 if (!s) {
-                    reject(new Error('No SpectorGPU instance'));
+                    reject(new Error('No Spector.GPU instance'));
                     return;
                 }
 

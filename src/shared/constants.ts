@@ -1,4 +1,4 @@
-/** Semver for the SpectorGPU extension; embedded in every ICapture. */
+/** Semver for the Spector.GPU extension; embedded in every ICapture. */
 export const SPECTOR_GPU_VERSION = '0.1.0' as const;
 
 /** Prefix for chrome.storage.local keys holding serialized captures. */

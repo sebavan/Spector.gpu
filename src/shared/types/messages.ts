@@ -1,5 +1,5 @@
 /**
- * Chrome extension messaging types for SpectorGPU.
+ * Chrome extension messaging types for Spector.GPU.
  *
  * All cross-context communication (content script ↔ background ↔ popup
  * ↔ result page) flows through these message types. The discriminated

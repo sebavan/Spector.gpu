@@ -1,5 +1,5 @@
 /**
- * SpectorGPU facade — orchestrates all spies, resource tracking, and
+ * Spector.GPU facade — orchestrates all spies, resource tracking, and
  * command tree construction for a single page context.
  *
  * Lifecycle:
@@ -428,7 +428,7 @@ export class SpectorGPU {
         this._deviceSpy.installPrototypeSpy(); // patches GPUAdapter.prototype.requestDevice
         this._installLateDetectionHooks(); // multi-strategy prototype hooks for late device discovery
         this._canvasSpy.install();
-        Logger.info('SpectorGPU initialized (passive mode)');
+        Logger.info('Spector.GPU initialized (passive mode)');
     }
 
     /**
@@ -438,7 +438,7 @@ export class SpectorGPU {
      */
     public captureNextFrame(): void {
         if (!this._initialized) {
-            this.onCaptureError.trigger({ error: new Error('SpectorGPU not initialized') });
+            this.onCaptureError.trigger({ error: new Error('Spector.GPU not initialized') });
             return;
         }
         if (this._isCapturing) return;

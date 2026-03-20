@@ -1,5 +1,5 @@
 /**
- * Barrel export for SpectorGPU test mocks.
+ * Barrel export for Spector.GPU test mocks.
  */
 export {
     // Types

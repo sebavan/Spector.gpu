@@ -1,6 +1,6 @@
 {
     "manifest_version": 3,
-    "name": "SpectorGPU — WebGPU Inspector",
+    "name": "Spector.GPU — WebGPU Inspector",
     "version": "0.1.0",
     "description": "Capture and inspect WebGPU frames on any website",
     "permissions": [
@@ -25,7 +25,7 @@
             "48": "icons/icon48.png",
             "128": "icons/icon128.png"
         },
-        "default_title": "SpectorGPU"
+        "default_title": "Spector.GPU"
     },
     "content_scripts": [
         {

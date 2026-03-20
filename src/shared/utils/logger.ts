@@ -8,7 +8,7 @@ export enum LogLevel {
 
 export class Logger {
     private static _level: LogLevel = LogLevel.Info;
-    private static readonly PREFIX = '[SpectorGPU]';
+    private static readonly PREFIX = '[Spector.GPU]';
 
     public static setLevel(level: LogLevel): void {
         Logger._level = level;

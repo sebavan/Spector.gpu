@@ -108,7 +108,7 @@ describe('GpuSpy', () => {
 
         expect(spy.isInstalled).toBe(false);
         expect(warnSpy).toHaveBeenCalledWith(
-            '[SpectorGPU]',
+            '[Spector.GPU]',
             'WebGPU not available',
         );
 

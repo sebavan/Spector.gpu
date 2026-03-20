@@ -1,8 +1,8 @@
-// Generate solid-color PNG icons for the SpectorGPU Chrome extension.
+// Generate solid-color PNG icons for the Spector.GPU Chrome extension.
 // Usage: node tools/generate-icons.js
 //
 // Produces valid PNG files using only Node.js builtins (no dependencies).
-// Color: #2196F3 (Material Blue 500) — the SpectorGPU brand blue.
+// Color: #2196F3 (Material Blue 500) — the Spector.GPU brand blue.
 
 'use strict';
 

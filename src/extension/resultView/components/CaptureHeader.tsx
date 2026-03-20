@@ -7,7 +7,7 @@ export function CaptureHeader({ capture }: { capture: ICapture }) {
     return (
         <header className="capture-header">
             <div className="header-title">
-                <h1>SpectorGPU Capture</h1>
+                <h1>Spector.GPU Capture</h1>
                 <span className="adapter-info">
                     {adapterInfo.description || adapterInfo.vendor || 'Unknown GPU'}
                 </span>

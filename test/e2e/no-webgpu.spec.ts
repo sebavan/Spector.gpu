@@ -37,7 +37,7 @@ test.describe('No WebGPU Page', () => {
         // Filter out extension-internal messages — only fail on real page errors
         const critical = errors.filter(
             (e) =>
-                !e.includes('SpectorGPU') &&
+                !e.includes('Spector.GPU') &&
                 !e.includes('Extension context') &&
                 !e.includes('WebGPU'),
         );

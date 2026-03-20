@@ -1,5 +1,5 @@
 /**
- * Resource info types for SpectorGPU.
+ * Resource info types for Spector.GPU.
  *
  * Each interface models the serialized descriptor + runtime state of a
  * single WebGPU resource. All resource types carry `id` (unique within

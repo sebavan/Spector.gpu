@@ -160,9 +160,9 @@ describe('patchMethod', () => {
         // Should not throw
         expect(() => patchMethod(obj, 'nonexistent', {})).not.toThrow();
 
-        // Logger.warn prints to console.warn with [SpectorGPU] prefix
+        // Logger.warn prints to console.warn with [Spector.GPU] prefix
         expect(warnSpy).toHaveBeenCalledWith(
-            '[SpectorGPU]',
+            '[Spector.GPU]',
             'Cannot patch nonexistent: not a function'
         );
 

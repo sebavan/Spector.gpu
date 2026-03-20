@@ -54,12 +54,12 @@ test.describe('Compute Pipeline Detection', () => {
     });
 
     test('no page errors from extension on compute-only page', async () => {
-        // Collect page errors that are NOT from SpectorGPU itself
+        // Collect page errors that are NOT from Spector.GPU itself
         const errors: string[] = [];
         page.on('pageerror', (err) => {
             const msg = err.message;
             // Extension log noise is acceptable; real page errors are not
-            if (!msg.includes('SpectorGPU') && !msg.includes('Extension context')) {
+            if (!msg.includes('Spector.GPU') && !msg.includes('Extension context')) {
                 errors.push(msg);
             }
         });
