@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spector.GPU — Buffer Wireframe Viewer Mock</title>
+<style>
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font-family:'Segoe UI',-apple-system,sans-serif;
+  background:#060608; color:#e0e0e0; font-size:13px; line-height:1.5;
+  padding:32px 48px;
+}
+h1.page-title { font-size:22px; color:#4fc3f7; margin-bottom:8px; }
+p.page-desc { color:#9090a0; margin-bottom:40px; font-size:14px; }
+
+:root {
+  --bg-primary:#0a0a0f; --bg-secondary:#111118; --bg-tertiary:#1a1a24;
+  --bg-hover:#222230; --text-primary:#e0e0e0; --text-secondary:#9090a0;
+  --text-muted:#606070; --accent:#4fc3f7; --accent-dark:#2196f3;
+  --border:#1f1f30; --radius:2px;
+}
+
+.mock-section {
+  margin-bottom:56px; border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden;
+}
+.mock-label {
+  background:var(--bg-secondary); padding:14px 20px;
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:baseline; gap:12px;
+}
+.mock-label h2 { font-size:15px; font-weight:700; color:var(--accent); }
+.mock-label .mock-num {
+  font-size:11px; font-weight:700; color:var(--text-muted);
+  text-transform:uppercase; letter-spacing:1px;
+}
+.mock-label p { font-size:12px; color:var(--text-secondary); margin-left:auto; }
+
+/* Buffer detail panel */
+.buffer-detail { padding:16px; display:flex; flex-direction:column; gap:16px; }
+
+.buffer-info-grid {
+  display:grid; grid-template-columns:70px 1fr;
+  gap:4px 8px; font-size:12px;
+}
+.buf-label { color:var(--text-muted); }
+.buf-value { color:var(--text-primary); font-family:'Cascadia Code','Consolas',monospace; }
+.buf-usage { color:var(--accent); font-size:11px; }
+
+/* 3D Viewer */
+.mesh-viewer-section h4 {
+  font-size:11px; text-transform:uppercase; color:var(--text-muted);
+  margin-bottom:6px; letter-spacing:0.5px;
+}
+.mesh-viewer-canvas {
+  width:100%; height:300px;
+  border:1px solid var(--border); border-radius:var(--radius);
+  background:var(--bg-tertiary); outline:none;
+}
+.mesh-viewer-toolbar {
+  display:flex; gap:6px; margin-bottom:6px;
+}
+.mesh-viewer-toolbar button {
+  padding:3px 10px; font-size:10px;
+  border:1px solid var(--border); border-radius:var(--radius);
+  background:var(--bg-tertiary); color:var(--text-secondary);
+  cursor:pointer; transition:background .1s;
+}
+.mesh-viewer-toolbar button:hover { background:var(--bg-hover); color:var(--text-primary); }
+.mesh-viewer-toolbar button.active { background:var(--accent-dark); border-color:var(--accent); color:#fff; }
+
+.mesh-viewer-stats {
+  display:flex; gap:16px; margin-top:4px; font-size:10px; color:var(--text-muted);
+  font-family:'Cascadia Code','Consolas',monospace;
+}
+.mesh-viewer-stats span { color:var(--accent); }
+
+.mesh-viewer-error {
+  color:#ff9800; font-size:12px; padding:12px; text-align:center;
+  background:rgba(255,152,0,0.08); border:1px solid rgba(255,152,0,0.2);
+  border-radius:var(--radius);
+}
+.mesh-viewer-loading {
+  color:var(--text-muted); font-size:12px; padding:20px; text-align:center;
+  background:var(--bg-tertiary); border:1px solid var(--border);
+  border-radius:var(--radius);
+}
+
+/* Vertex data table */
+.vertex-table-section h4 {
+  font-size:11px; text-transform:uppercase; color:var(--text-muted);
+  margin-bottom:6px; letter-spacing:0.5px;
+}
+.vertex-table {
+  width:100%; border-collapse:collapse;
+  font-family:'Cascadia Code','Consolas',monospace; font-size:11px;
+  background:var(--bg-tertiary); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden;
+}
+.vertex-table th {
+  padding:4px 8px; text-align:left; font-size:10px;
+  text-transform:uppercase; letter-spacing:0.5px;
+  color:var(--text-muted); background:var(--bg-primary);
+  border-bottom:1px solid var(--border);
+}
+.vertex-table td {
+  padding:3px 8px; color:var(--text-primary);
+  border-bottom:1px solid var(--border);
+}
+.vertex-table tr:hover td { background:var(--bg-hover); }
+.vertex-table .attr-pos { color:#4ec9b0; }
+.vertex-table .attr-norm { color:#c586c0; }
+.vertex-table .attr-uv { color:#dcdcaa; }
+.vertex-table .vtx-idx { color:var(--text-muted); text-align:right; }
+.vertex-table .trunc-row td {
+  color:var(--text-muted); font-style:italic; text-align:center;
+}
+
+/* Layout info card */
+.layout-card {
+  background:var(--bg-tertiary); border:1px solid var(--border);
+  border-radius:var(--radius); padding:10px 12px; font-size:11px;
+}
+.layout-card h5 {
+  font-size:10px; text-transform:uppercase; color:var(--text-muted);
+  letter-spacing:0.5px; margin-bottom:6px;
+}
+.layout-attr {
+  display:flex; gap:8px; padding:2px 0;
+  font-family:'Cascadia Code','Consolas',monospace;
+}
+.layout-attr .la-loc { color:var(--text-muted); min-width:24px; }
+.layout-attr .la-fmt { color:var(--accent); }
+.layout-attr .la-off { color:var(--text-muted); }
+
+/* Hex dump */
+.hex-dump-section h4 {
+  font-size:11px; text-transform:uppercase; color:var(--text-muted);
+  margin-bottom:6px; letter-spacing:0.5px;
+}
+.hex-dump {
+  background:var(--bg-tertiary); border:1px solid var(--border);
+  border-radius:var(--radius); padding:10px 12px;
+  font-family:'Cascadia Code','Consolas',monospace;
+  font-size:11px; line-height:1.5; color:var(--text-primary);
+  overflow:auto; max-height:200px; white-space:pre;
+}
+</style>
+</head>
+<body>
+
+<h1 class="page-title">Spector.GPU — Buffer Wireframe Viewer</h1>
+<p class="page-desc">Improved buffer visualization with working 3D wireframe, vertex data table, and layout info.</p>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     MOCK 1: Vertex Buffer — Working 3D View
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="mock-section">
+  <div class="mock-label">
+    <span class="mock-num">Mock 1</span>
+    <h2>Vertex Buffer — Working Wireframe</h2>
+    <p>Babylon.js renders the vertex data as an interactive wireframe mesh with orbit controls. Shows layout info + vertex data table.</p>
+  </div>
+  <div class="buffer-detail">
+    <div class="buffer-info-grid">
+      <span class="buf-label">ID:</span><span class="buf-value">buf_7</span>
+      <span class="buf-label">Label:</span><span class="buf-value">BoomBox_Vertices</span>
+      <span class="buf-label">Size:</span><span class="buf-value">48.0 KB</span>
+      <span class="buf-label">Usage:</span><span class="buf-usage">COPY_SRC | COPY_DST | VERTEX</span>
+      <span class="buf-label">State:</span><span class="buf-value">unmapped</span>
+    </div>
+
+    <!-- Layout info card -->
+    <div class="layout-card">
+      <h5>Vertex Layout (from pipeline rp_3, slot 0, stride 32)</h5>
+      <div class="layout-attr"><span class="la-loc">@0</span> <span class="la-fmt">float32x3</span> <span class="la-off">offset 0 — position</span></div>
+      <div class="layout-attr"><span class="la-loc">@1</span> <span class="la-fmt">float32x3</span> <span class="la-off">offset 12 — normal</span></div>
+      <div class="layout-attr"><span class="la-loc">@2</span> <span class="la-fmt">float32x2</span> <span class="la-off">offset 24 — texcoord</span></div>
+    </div>
+
+    <!-- 3D Viewer -->
+    <div class="mesh-viewer-section">
+      <h4>3D Preview</h4>
+      <div class="mesh-viewer-toolbar">
+        <button class="active">Wireframe</button>
+        <button>Solid</button>
+        <button>Points</button>
+        <button>Reset Camera</button>
+      </div>
+      <canvas class="mesh-viewer-canvas" style="background:linear-gradient(135deg, #0a0a14 0%, #141428 100%);"></canvas>
+      <div class="mesh-viewer-stats">
+        Vertices: <span>1,536</span> &nbsp; Triangles: <span>512</span> &nbsp;
+        Bounds: <span>[-2.1, -1.8, -2.1] → [2.1, 1.8, 2.1]</span>
+      </div>
+    </div>
+
+    <!-- Vertex data table -->
+    <div class="vertex-table-section">
+      <h4>Vertex Data (first 20 of 1,536)</h4>
+      <table class="vertex-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Position (x, y, z)</th>
+            <th>Normal (x, y, z)</th>
+            <th>UV (u, v)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="vtx-idx">0</td>
+            <td class="attr-pos">-0.0340, 0.0148, -0.0386</td>
+            <td class="attr-norm">-0.5774, 0.5774, -0.5774</td>
+            <td class="attr-uv">0.2500, 0.7500</td>
+          </tr>
+          <tr>
+            <td class="vtx-idx">1</td>
+            <td class="attr-pos">0.0340, 0.0148, -0.0386</td>
+            <td class="attr-norm">0.5774, 0.5774, -0.5774</td>
+            <td class="attr-uv">0.7500, 0.7500</td>
+          </tr>
+          <tr>
+            <td class="vtx-idx">2</td>
+            <td class="attr-pos">0.0340, -0.0148, -0.0386</td>
+            <td class="attr-norm">0.5774, -0.5774, -0.5774</td>
+            <td class="attr-uv">0.7500, 0.2500</td>
+          </tr>
+          <tr>
+            <td class="vtx-idx">3</td>
+            <td class="attr-pos">-0.0340, -0.0148, -0.0386</td>
+            <td class="attr-norm">-0.5774, -0.5774, -0.5774</td>
+            <td class="attr-uv">0.2500, 0.2500</td>
+          </tr>
+          <tr>
+            <td class="vtx-idx">4</td>
+            <td class="attr-pos">-0.0340, 0.0148, 0.0386</td>
+            <td class="attr-norm">-0.5774, 0.5774, 0.5774</td>
+            <td class="attr-uv">0.0000, 0.7500</td>
+          </tr>
+          <tr class="trunc-row"><td colspan="4">… 1,531 more vertices</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Hex dump -->
+    <div class="hex-dump-section">
+      <h4>Raw Data (first 2.0 KB of 48.0 KB)</h4>
+      <pre class="hex-dump">00000000  cd cc 0c bd  9d 93 72 3c  29 5c 0f bd  e4 25 a0 be  |......r<)\...%..| 
+00000010  e4 25 a0 3e  e4 25 a0 be  00 00 00 3e  00 00 40 3f  |.%.>...%...>..@?|
+00000020  cd cc 0c 3d  9d 93 72 3c  29 5c 0f bd  e4 25 a0 3e  |...=..r<)\...%.>|
+00000030  e4 25 a0 3e  e4 25 a0 be  00 00 40 3f  00 00 40 3f  |.%.>.%....@?..@?|
+00000040  cd cc 0c 3d  9d 93 72 bc  29 5c 0f bd  e4 25 a0 3e  |...=..r.)\...%.>|</pre>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     MOCK 2: Vertex Buffer — Layout Not Found (Improved Error)
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="mock-section">
+  <div class="mock-label">
+    <span class="mock-num">Mock 2</span>
+    <h2>Vertex Buffer — Layout Not Found</h2>
+    <p>When the buffer isn't bound in any draw call, show a clear error with diagnostic info instead of a silent failure.</p>
+  </div>
+  <div class="buffer-detail">
+    <div class="buffer-info-grid">
+      <span class="buf-label">ID:</span><span class="buf-value">buf_22</span>
+      <span class="buf-label">Label:</span><span class="buf-value">StagingVertexBuffer</span>
+      <span class="buf-label">Size:</span><span class="buf-value">12.4 KB</span>
+      <span class="buf-label">Usage:</span><span class="buf-usage">COPY_SRC | COPY_DST | VERTEX</span>
+      <span class="buf-label">State:</span><span class="buf-value">unmapped</span>
+    </div>
+
+    <div class="mesh-viewer-error">
+      ⚠ No vertex layout found — this buffer was not bound in any draw call during the captured frame.<br>
+      <span style="font-size:11px; color:var(--text-muted); margin-top:4px; display:inline-block;">
+        Searched 2 draw calls across 1 render pass. Buffer ID buf_22 not found in any vertexBuffers binding.
+      </span>
+    </div>
+
+    <div class="hex-dump-section">
+      <h4>Raw Data (first 2.0 KB of 12.4 KB)</h4>
+      <pre class="hex-dump">00000000  00 00 80 3f  00 00 00 00  00 00 00 00  00 00 80 3f  |...?...........?|
+00000010  00 00 00 00  00 00 00 00  00 00 80 bf  00 00 00 00  |................|
+00000020  00 00 00 00  00 00 80 3f  00 00 00 00  00 00 00 00  |.......?........|</pre>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     MOCK 3: Index Buffer
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="mock-section">
+  <div class="mock-label">
+    <span class="mock-num">Mock 3</span>
+    <h2>Index Buffer</h2>
+    <p>Index buffers show the index values in a compact grid, with triangle grouping highlighted.</p>
+  </div>
+  <div class="buffer-detail">
+    <div class="buffer-info-grid">
+      <span class="buf-label">ID:</span><span class="buf-value">buf_8</span>
+      <span class="buf-label">Label:</span><span class="buf-value">BoomBox_Indices</span>
+      <span class="buf-label">Size:</span><span class="buf-value">6.0 KB</span>
+      <span class="buf-label">Usage:</span><span class="buf-usage">COPY_SRC | COPY_DST | INDEX</span>
+      <span class="buf-label">State:</span><span class="buf-value">unmapped</span>
+    </div>
+
+    <div class="vertex-table-section">
+      <h4>Index Data (uint16, 3072 indices = 1024 triangles)</h4>
+      <table class="vertex-table">
+        <thead>
+          <tr>
+            <th>Triangle</th>
+            <th>v0</th>
+            <th>v1</th>
+            <th>v2</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="vtx-idx">0</td><td>0</td><td>1</td><td>2</td></tr>
+          <tr><td class="vtx-idx">1</td><td>0</td><td>2</td><td>3</td></tr>
+          <tr><td class="vtx-idx">2</td><td>4</td><td>5</td><td>6</td></tr>
+          <tr><td class="vtx-idx">3</td><td>4</td><td>6</td><td>7</td></tr>
+          <tr><td class="vtx-idx">4</td><td>8</td><td>9</td><td>10</td></tr>
+          <tr class="trunc-row"><td colspan="4">… 1,019 more triangles</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="hex-dump-section">
+      <h4>Raw Data (first 2.0 KB of 6.0 KB)</h4>
+      <pre class="hex-dump">00000000  00 00 01 00  02 00 00 00  02 00 03 00  04 00 05 00  |................|
+00000010  06 00 04 00  06 00 07 00  08 00 09 00  0a 00 08 00  |................|</pre>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     MOCK 4: Uniform / Storage Buffer
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="mock-section">
+  <div class="mock-label">
+    <span class="mock-num">Mock 4</span>
+    <h2>Uniform Buffer</h2>
+    <p>Non-vertex buffers show a structured float32 view when the data looks like floats, plus the hex dump.</p>
+  </div>
+  <div class="buffer-detail">
+    <div class="buffer-info-grid">
+      <span class="buf-label">ID:</span><span class="buf-value">buf_0</span>
+      <span class="buf-label">Label:</span><span class="buf-value">SceneUniforms</span>
+      <span class="buf-label">Size:</span><span class="buf-value">256 B</span>
+      <span class="buf-label">Usage:</span><span class="buf-usage">COPY_SRC | COPY_DST | UNIFORM</span>
+      <span class="buf-label">State:</span><span class="buf-value">unmapped</span>
+    </div>
+
+    <div class="vertex-table-section">
+      <h4>Float32 View (64 values, likely 4×4 matrices)</h4>
+      <table class="vertex-table">
+        <thead>
+          <tr><th>Offset</th><th>float[0]</th><th>float[1]</th><th>float[2]</th><th>float[3]</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="vtx-idx">0</td>
+            <td>1.2990</td><td>0.0000</td><td>0.0000</td><td>0.0000</td>
+          </tr>
+          <tr>
+            <td class="vtx-idx">16</td>
+            <td>0.0000</td><td>1.7321</td><td>0.0000</td><td>0.0000</td>
+          </tr>
+          <tr>
+            <td class="vtx-idx">32</td>
+            <td>0.0000</td><td>0.0000</td><td>-1.0002</td><td>-1.0000</td>
+          </tr>
+          <tr>
+            <td class="vtx-idx">48</td>
+            <td>0.0000</td><td>0.0000</td><td>-0.2000</td><td>0.0000</td>
+          </tr>
+          <tr style="border-top:2px solid var(--border);">
+            <td class="vtx-idx">64</td>
+            <td>0.8660</td><td>0.2500</td><td>-0.4330</td><td>0.0000</td>
+          </tr>
+          <tr>
+            <td class="vtx-idx">80</td>
+            <td>0.0000</td><td>0.8660</td><td>0.5000</td><td>0.0000</td>
+          </tr>
+          <tr class="trunc-row"><td colspan="5">… 10 more rows</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="hex-dump-section">
+      <h4>Raw Data (256 B)</h4>
+      <pre class="hex-dump">00000000  48 e1 a6 3f  00 00 00 00  00 00 00 00  00 00 00 00  |H..?............|
+00000010  00 00 00 00  db 0f dd 3f  00 00 00 00  00 00 00 00  |.......?........|</pre>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

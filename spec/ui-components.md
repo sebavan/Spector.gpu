@@ -30,7 +30,13 @@ ResultApp
     └── [Resources mode] ResourceDetail (dispatches by category)
         ├── [buffers] BufferDetail
         │   ├── buffer-info-grid (ID, label, size, usage flags, state)
-        │   ├── BufferMeshViewer (lazy Babylon.js, vertex buffers only)
+        │   ├── LayoutInfoCard (pipeline ID, slot, stride, attributes)
+        │   ├── BufferMeshViewer (lazy Babylon.js, wireframe/solid/points)
+        │   │   ├── Toolbar (render mode toggle + reset camera)
+        │   │   └── Stats bar (vertices, triangles, bounds)
+        │   ├── VertexDataTable (parsed float values by attribute, colored)
+        │   ├── IndexDataTable (triangles grouped v0/v1/v2)
+        │   ├── FloatDataTable (uniform/storage: 4 floats per row)
         │   └── HexDump (address | hex | ascii, max 2KB display)
         ├── [textures] TextureThumbnail + JsonTree
         │   ├── preview img (previewDataUrl or canvas screenshot for isCanvasTexture)
@@ -69,14 +75,30 @@ NavigationContext: `navigateToResource(target)` switches sidebar to resources mo
 - All state in `useRef` (zero allocations per mouse event)
 - **Must clean up document listeners on unmount** — if component unmounts mid-drag, `useEffect` cleanup must remove mousemove/mouseup from document
 
+### BufferDetail (`BufferDetail.tsx`)
+- **NOT lazy-loaded** — contains layout resolution logic that must work without Babylon
+- Contains `findVertexLayoutForBuffer()`: DFS command tree search for draw calls binding this buffer → resolve pipeline → get vertex layout + slot + pipeline ID
+- Sub-components:
+  - **LayoutInfoCard** — Shows resolved pipeline ID, slot, stride, and attribute list (@location, format, offset)
+  - **VertexDataTable** — Parses raw buffer bytes using layout stride/attributes, displays as typed float columns. Color-coded: position (#4ec9b0), normal (#c586c0), uv (#dcdcaa). Capped at 20 rows.
+  - **IndexDataTable** — For INDEX buffers: parses uint16/uint32 indices, groups by triangles (v0/v1/v2)
+  - **FloatDataTable** — For UNIFORM/STORAGE buffers: 4 float32 values per row
+  - **HexDump** — Raw hex dump, 2KB max display
+- When vertex layout can't be found, shows diagnostic error: draw call count, render pass count searched
+
 ### BufferMeshViewer (`BufferMeshViewer.tsx`)
 - **Lazy-loaded** via `React.lazy(() => import('./BufferMeshViewer'))` with error fallback
-- Finds vertex layout: DFS search through command tree for draw calls binding this buffer → resolve pipeline → get `vertex.buffers[slot]`
+- **Receives resolved layout as prop** — does NOT do layout lookup internally (avoids importing non-Babylon deps)
+- Props: `rawData`, `layout` (IVertexBufferLayout), optional `indexData` + `indexFormat`
 - Parses positions (shaderLocation 0 or first float32x3/x4 attribute) via DataView.getFloat32
 - Optionally parses normals (shaderLocation 1)
-- Creates Babylon.js Mesh + VertexData + wireframe StandardMaterial (accent color #4fc3f7)
-- ArcRotateCamera auto-framed on bounding box
-- **Resize handler must guard against disposed engine** — use `disposedRef` to skip `engine.resize()` after cleanup
+- Creates Babylon.js Mesh + VertexData + StandardMaterial
+- **Render modes**: wireframe (default), solid (with lighting), points — toggled via toolbar
+- **Stats bar**: vertex count, triangle count, bounding box extent
+- **Reset Camera**: re-frames ArcRotateCamera on mesh bounding box
+- ArcRotateCamera auto-framed on bounding box with orbit controls
+- **Resize handler must guard against disposed engine** — use `disposedRef`
+- **CSP**: Manifest V3 extension pages need `'unsafe-eval'` in content_security_policy for Babylon shader compilation
 
 ### JsonTree (`JsonTree.tsx`)
 - Recursive collapsible JSON viewer
