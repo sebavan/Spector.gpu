@@ -46,10 +46,13 @@ chrome.runtime.onMessage.addListener((message: IMessage, sender, sendResponse) =
                 state.adapterInfo = message.payload;
                 chrome.action.setIcon({
                     tabId,
-                    path: { 16: 'icons/icon16.png', 48: 'icons/icon48.png' },
+                    path: {
+                        16: 'icons/icon16.png',
+                        48: 'icons/icon48-active.png',
+                        128: 'icons/icon128-active.png',
+                    },
                 }).catch(() => {});
-                chrome.action.setBadgeText({ tabId, text: 'GPU' }).catch(() => {});
-                chrome.action.setBadgeBackgroundColor({ tabId, color: '#4CAF50' }).catch(() => {});
+                chrome.action.setBadgeText({ tabId, text: '' }).catch(() => {});
             }
             break;
         }
