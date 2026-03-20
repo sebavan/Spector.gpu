@@ -805,19 +805,19 @@ $gutter-width: 48px;
 
     button {
         flex: 1;
-        padding: 6px 0;
+        padding: 7px 0;
         background: none;
         border: none;
-        color: $text-secondary;
+        color: $text-muted;
         cursor: pointer;
-        font-size: 11px;
-        font-weight: 600;
+        font-size: 10px;
+        font-weight: 700;
         border-bottom: 2px solid transparent;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
-        transition: color 0.1s, border-color 0.1s;
+        letter-spacing: 0.8px;
+        transition: color 0.1s, border-color 0.1s, background 0.1s;
 
-        &:hover { color: $text-primary; }
+        &:hover { color: $text-primary; background: rgba($bg-hover, 0.5); }
         &.active {
             color: $accent;
             border-bottom-color: $accent;
@@ -831,25 +831,75 @@ $gutter-width: 48px;
 .resource-browser {
     flex: 1;
     overflow-y: auto;
+
+    .resource-item {
+        display: flex;
+        align-items: center;
+        padding: 3px 10px 3px 28px;
+        cursor: pointer;
+        gap: 5px;
+        font-family: 'Cascadia Code', 'Consolas', monospace;
+        font-size: 11px;
+        color: $text-primary;
+        border-left: 2px solid transparent;
+        transition: background 0.08s;
+
+        &:hover { background: $bg-hover; }
+        &.selected {
+            background: $bg-selected;
+            border-left-color: $accent;
+        }
+
+        .resource-id {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .resource-label {
+            color: $text-muted;
+            font-size: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-left: auto;
+        }
+
+        .shader-stage-badge.small {
+            font-size: 7px;
+            font-weight: 700;
+            padding: 0 3px;
+            border-radius: 2px;
+            flex-shrink: 0;
+            &.stage-vertex   { background: rgba($color-renderpass, 0.2); color: $color-renderpass; }
+            &.stage-fragment { background: rgba($color-draw, 0.2); color: $color-draw; }
+            &.stage-compute  { background: rgba($color-computepass, 0.2); color: $color-computepass; }
+        }
+    }
 }
 
 .res-group-header {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 10px;
+    padding: 5px 10px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     color: $text-secondary;
+    background: $bg-primary;
     border-bottom: 1px solid $border;
+    user-select: none;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
 
-    &:hover { background: $bg-hover; }
+    &:hover { color: $text-primary; }
 
     .g-toggle {
-        font-size: 9px;
+        font-size: 8px;
         color: $text-muted;
         width: 12px;
+        flex-shrink: 0;
     }
 
     .g-count {
@@ -861,8 +911,9 @@ $gutter-width: 48px;
 }
 
 .res-empty {
-    padding: 4px 28px;
-    font-size: 11px;
+    padding: 6px 28px;
+    font-size: 10px;
+    color: $text-muted;
 }
 
 // ─── Breadcrumb ──────────────────────────────────────────────────────
