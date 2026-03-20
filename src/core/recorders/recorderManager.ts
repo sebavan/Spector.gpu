@@ -47,6 +47,7 @@ export class RecorderManager {
     private _bindGroups = new Map<string, IBindGroupInfo>();
     private _bindGroupLayouts = new Map<string, IBindGroupLayoutInfo>();
     private _destroyedTextures = new Set<string>();
+    private _lastCanvasTextureId: string | null = null;
     private _destroyedBuffers = new Set<string>();
 
     // ─── Object ID tracking ──────────────────────────────────────────
@@ -188,12 +189,18 @@ export class RecorderManager {
     /**
      * Record a canvas texture obtained via GPUCanvasContext.getCurrentTexture().
      * These bypass device.createTexture() and would otherwise be invisible.
-     * Idempotent — returns existing ID if the texture is already tracked
-     * (getCurrentTexture() may return the same object within a frame).
+     * Idempotent per object. Only keeps the LATEST canvas texture — removes
+     * previous ones to prevent unbounded accumulation (one new texture per frame).
      */
     public recordCanvasTexture(texture: object, format: string, width: number, height: number): string {
         const existingId = this._objectIds.get(texture);
         if (existingId !== undefined) return existingId;
+
+        // Remove previous canvas texture entries — only keep the latest.
+        if (this._lastCanvasTextureId) {
+            this._textures.delete(this._lastCanvasTextureId);
+            this._idToObject.delete(this._lastCanvasTextureId);
+        }
 
         const id = this.trackObject(texture, 'tex');
         this._textures.set(id, {
@@ -207,6 +214,7 @@ export class RecorderManager {
             usage: 0x10, // RENDER_ATTACHMENT (at minimum)
             isCanvasTexture: true,
         });
+        this._lastCanvasTextureId = id;
         return id;
     }
 
@@ -443,8 +451,8 @@ export class RecorderManager {
      */
     public snapshot(): IResourceMap {
         return {
-            buffers: new Map(this._buffers),
-            textures: new Map(this._textures),
+            buffers: this._filterLive(this._buffers, this._destroyedBuffers),
+            textures: this._filterLive(this._textures, this._destroyedTextures),
             textureViews: new Map(this._textureViews),
             samplers: new Map(this._samplers),
             shaderModules: new Map(this._shaderModules),
@@ -453,6 +461,22 @@ export class RecorderManager {
             bindGroups: new Map(this._bindGroups),
             bindGroupLayouts: new Map(this._bindGroupLayouts),
         };
+    }
+
+    /** Filter out destroyed resources and those whose GPU objects have been GC'd. */
+    private _filterLive<T>(
+        map: Map<string, T>,
+        destroyed: Set<string>,
+    ): Map<string, T> {
+        const live = new Map<string, T>();
+        for (const [id, info] of map) {
+            if (destroyed.has(id)) continue;
+            // Skip GC'd objects — their WeakRef deref returns undefined
+            const ref = this._idToObject.get(id);
+            if (ref && !ref.deref()) continue;
+            live.set(id, info);
+        }
+        return live;
     }
 
     /** Aggregate counters for the capture stats. */
@@ -482,6 +506,7 @@ export class RecorderManager {
         this._bindGroups.clear();
         this._bindGroupLayouts.clear();
         this._destroyedTextures.clear();
+        this._lastCanvasTextureId = null;
         this._destroyedBuffers.clear();
     }
 }

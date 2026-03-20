@@ -103,8 +103,9 @@ describe('Buffer recording', () => {
         const id = mgr.recordBufferCreation(buf, { size: 256, usage: 1 });
         mgr.recordBufferDestroy(buf);
 
-        const info = mgr.snapshot().buffers.get(id)!;
-        expect(info.state).toBe('destroyed');
+        // Destroyed buffers are filtered from snapshot
+        expect(mgr.snapshot().buffers.has(id)).toBe(false);
+        expect(mgr.isBufferDestroyed(id)).toBe(true);
     });
 });
 
