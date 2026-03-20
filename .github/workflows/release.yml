@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build production
+        run: npm run build
+
+      - name: Package extension
+        run: |
+          cd dist
+          zip -r ../spector-gpu-${{ github.ref_name }}.zip .
+          cd ..
+          echo "Extension packaged: spector-gpu-${{ github.ref_name }}.zip"
+          ls -lh spector-gpu-${{ github.ref_name }}.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Spector.GPU ${{ github.ref_name }}
+          body: |
+            ## Spector.GPU ${{ github.ref_name }}
+
+            ### Install
+            1. Download `spector-gpu-${{ github.ref_name }}.zip`
+            2. Unzip to a folder
+            3. Open `chrome://extensions/` → Enable Developer mode
+            4. Click "Load unpacked" → Select the unzipped folder
+          files: spector-gpu-${{ github.ref_name }}.zip
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          generate_release_notes: true
