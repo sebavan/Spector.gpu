@@ -1102,3 +1102,106 @@ $gutter-width: 48px;
     border: 1px solid $border;
     border-radius: 2px;
 }
+
+// ─── Layout info card ────────────────────────────────────────────────
+
+.layout-card {
+    background: $bg-tertiary;
+    border: 1px solid $border;
+    border-radius: 2px;
+    padding: 10px 12px;
+
+    h5 {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: $text-muted;
+        margin-bottom: 6px;
+        letter-spacing: 0.5px;
+    }
+}
+
+.layout-attr {
+    display: flex;
+    gap: 12px;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 11px;
+    line-height: 1.8;
+
+    .la-loc { color: $accent; min-width: 28px; }
+    .la-fmt { color: $text-primary; min-width: 90px; }
+    .la-off { color: $text-muted; }
+}
+
+// ─── Mesh viewer toolbar ─────────────────────────────────────────────
+
+.mesh-viewer-toolbar {
+    display: flex;
+    gap: 6px;
+    padding: 6px 0;
+
+    button {
+        background: $bg-tertiary;
+        border: 1px solid $border;
+        border-radius: 2px;
+        color: $text-secondary;
+        font-size: 11px;
+        padding: 3px 10px;
+        cursor: pointer;
+
+        &:hover { background: $bg-hover; color: $text-primary; }
+        &.active { background: $bg-selected; color: $accent; border-color: $accent; }
+    }
+}
+
+.mesh-viewer-stats {
+    font-size: 11px;
+    color: $text-muted;
+    padding: 4px 0;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+}
+
+// ─── Vertex data table ───────────────────────────────────────────────
+
+.vertex-table-section {
+    h4 {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: $text-muted;
+        margin-bottom: 6px;
+        letter-spacing: 0.5px;
+    }
+}
+
+.vertex-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 11px;
+
+    th {
+        text-align: left;
+        padding: 4px 8px;
+        border-bottom: 1px solid $border;
+        color: $text-muted;
+        font-weight: 500;
+        position: sticky;
+        top: 0;
+        background: $bg-secondary;
+    }
+
+    td {
+        padding: 2px 8px;
+        border-bottom: 1px solid $border;
+        color: $text-primary;
+    }
+
+    tr:hover td { background: $bg-hover; }
+}
+
+.vertex-table-wrap {
+    background: $bg-tertiary;
+    border: 1px solid $border;
+    border-radius: 2px;
+    max-height: 360px;
+    overflow: auto;
+}

@@ -1,11 +1,7 @@
-import React, { useMemo, useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import type {
-    IBufferInfo,
-    ICapture,
-    ICommandNode,
     IVertexBufferLayout,
 } from '@shared/types';
-import { resolveMapEntry } from '../resourceMapHelpers';
 
 // ── Babylon.js tree-shaken imports ───────────────────────────────────
 import { Engine } from '@babylonjs/core/Engines/engine';
@@ -18,46 +14,32 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
-// ── BufferMeshViewer — 3D wireframe via Babylon.js ───────────────────
+// ── Render mode ──────────────────────────────────────────────────────
+
+type RenderMode = 'wireframe' | 'solid' | 'points';
+
+// ── BufferMeshViewer — 3D preview via Babylon.js ─────────────────────
 
 export default function BufferMeshViewer({
-    buffer,
     rawData,
-    capture,
-    isIndex,
+    layout,
 }: {
-    buffer: IBufferInfo;
     rawData: Uint8Array;
-    capture: ICapture;
-    isIndex: boolean;
+    layout: IVertexBufferLayout;
 }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const disposedRef = useRef(false);
     const [error, setError] = useState<string | null>(null);
-
-    // Resolve vertex layout from capture pipelines
-    const vertexLayout = useMemo(() => {
-        if (isIndex) return null;
-        return findVertexLayoutForBuffer(buffer.id, capture);
-    }, [buffer.id, capture, isIndex]);
+    const [renderMode, setRenderMode] = useState<RenderMode>('wireframe');
+    const [stats, setStats] = useState<string>('');
+    const engineRef = useRef<Engine | null>(null);
+    const cameraRef = useRef<ArcRotateCamera | null>(null);
+    const materialRef = useRef<StandardMaterial | null>(null);
 
     useEffect(() => {
         const canvas = canvasRef.current;
         disposedRef.current = false;
         if (!canvas || !rawData) return;
-
-        if (isIndex) {
-            setError(
-                'Index buffer — select the corresponding vertex buffer for 3D view',
-            );
-            return;
-        }
-        if (!vertexLayout) {
-            setError(
-                'No vertex layout found — buffer is not bound in any draw call',
-            );
-            return;
-        }
 
         let engine: Engine | null = null;
         try {
@@ -65,6 +47,7 @@ export default function BufferMeshViewer({
                 preserveDrawingBuffer: true,
                 stencil: false,
             });
+            engineRef.current = engine;
 
             const scene = new Scene(engine);
             scene.clearColor = new Color4(0.04, 0.04, 0.06, 1);
@@ -80,16 +63,29 @@ export default function BufferMeshViewer({
             camera.attachControl(canvas, true);
             camera.wheelPrecision = 50;
             camera.minZ = 0.01;
+            cameraRef.current = camera;
 
             new HemisphericLight('light', new Vector3(0, 1, 0.5), scene);
 
-            const mesh = createMeshFromVertexData(rawData, vertexLayout, scene);
+            const mesh = createMeshFromVertexData(rawData, layout, scene);
             if (mesh) {
                 const bounds = mesh.getBoundingInfo().boundingBox;
                 const center = bounds.center;
                 const extent = bounds.extendSize.length();
                 camera.target = center;
                 camera.radius = extent * 2.5;
+
+                const vertexCount = Math.floor(rawData.length / layout.arrayStride);
+                const min = bounds.minimumWorld;
+                const max = bounds.maximumWorld;
+                setStats(
+                    `${vertexCount} vertices | bounds [${min.x.toFixed(2)}, ${min.y.toFixed(2)}, ${min.z.toFixed(2)}] → [${max.x.toFixed(2)}, ${max.y.toFixed(2)}, ${max.z.toFixed(2)}]`,
+                );
+            }
+
+            // Store material ref for render mode changes
+            if (mesh?.material instanceof StandardMaterial) {
+                materialRef.current = mesh.material;
             }
 
             engine.runRenderLoop(() => scene.render());
@@ -101,6 +97,9 @@ export default function BufferMeshViewer({
             return () => {
                 disposedRef.current = true;
                 window.removeEventListener('resize', onResize);
+                engineRef.current = null;
+                cameraRef.current = null;
+                materialRef.current = null;
                 eng.dispose();
             };
         } catch (e) {
@@ -109,7 +108,22 @@ export default function BufferMeshViewer({
                 try { engine.dispose(); } catch { /* best-effort */ }
             }
         }
-    }, [rawData, vertexLayout, isIndex]);
+    }, [rawData, layout]);
+
+    // Apply render mode changes without recreating the scene
+    useEffect(() => {
+        const mat = materialRef.current;
+        if (!mat) return;
+        mat.wireframe = renderMode === 'wireframe';
+        mat.pointsCloud = renderMode === 'points';
+    }, [renderMode]);
+
+    const handleResetCamera = () => {
+        const cam = cameraRef.current;
+        if (!cam) return;
+        cam.alpha = Math.PI / 4;
+        cam.beta = Math.PI / 3;
+    };
 
     if (error) {
         return <div className="mesh-viewer-error">{error}</div>;
@@ -118,61 +132,25 @@ export default function BufferMeshViewer({
     return (
         <div className="mesh-viewer-section">
             <h4>3D Preview</h4>
+            <div className="mesh-viewer-toolbar">
+                <button className={renderMode === 'wireframe' ? 'active' : ''} onClick={() => setRenderMode('wireframe')}>Wireframe</button>
+                <button className={renderMode === 'solid' ? 'active' : ''} onClick={() => setRenderMode('solid')}>Solid</button>
+                <button className={renderMode === 'points' ? 'active' : ''} onClick={() => setRenderMode('points')}>Points</button>
+                <button onClick={handleResetCamera}>Reset Camera</button>
+            </div>
             <canvas ref={canvasRef} className="mesh-viewer-canvas" />
+            {stats && <div className="mesh-viewer-stats">{stats}</div>}
         </div>
     );
-}
-
-// ── Vertex layout resolution ─────────────────────────────────────────
-
-interface ResolvedLayout {
-    layout: IVertexBufferLayout;
-    slot: number;
-}
-
-function findVertexLayoutForBuffer(
-    bufferId: string,
-    capture: ICapture,
-): ResolvedLayout | null {
-    return findInCommands(capture.commands, (node) => {
-        if (!node.vertexBuffers || !node.pipelineId) return null;
-        const slot = node.vertexBuffers.indexOf(bufferId);
-        if (slot < 0) return null;
-
-        const pipeline = resolveMapEntry(
-            capture.resources.renderPipelines,
-            node.pipelineId,
-        );
-        if (!pipeline?.vertex?.buffers?.[slot]) return null;
-
-        return { layout: pipeline.vertex.buffers[slot], slot };
-    });
-}
-
-function findInCommands<T>(
-    nodes: readonly ICommandNode[],
-    predicate: (node: ICommandNode) => T | null,
-): T | null {
-    for (let i = 0; i < nodes.length; i++) {
-        const node = nodes[i];
-        const result = predicate(node);
-        if (result) return result;
-        if (node.children.length > 0) {
-            const childResult = findInCommands(node.children, predicate);
-            if (childResult) return childResult;
-        }
-    }
-    return null;
 }
 
 // ── Mesh construction from raw vertex data ───────────────────────────
 
 function createMeshFromVertexData(
     rawData: Uint8Array,
-    layoutInfo: ResolvedLayout,
+    layout: IVertexBufferLayout,
     scene: Scene,
 ): Mesh | null {
-    const { layout } = layoutInfo;
     const stride = layout.arrayStride;
     if (stride === 0) return null;
 
