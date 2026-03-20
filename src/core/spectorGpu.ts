@@ -295,6 +295,10 @@ function pixelsToDataUrl(
             const dstOffset = dstRowOffset + x * 4;
 
             convertPixel(rawData, srcOffset, rgba, dstOffset, format);
+            // Force alpha to fully opaque — many GPU textures have alpha=0
+            // (unused channel) which would produce invisible/black thumbnails
+            // when composited via drawImage or encoded to JPEG.
+            rgba[dstOffset + 3] = 255;
         }
     }
 
@@ -1046,7 +1050,7 @@ export class SpectorGPU {
     /** Maximum number of textures to read back per capture. */
     private static readonly MAX_READBACK_TEXTURES = 16;
     /** Maximum thumbnail dimension (px). Textures are scaled down to fit. */
-    private static readonly READBACK_THUMB_SIZE = 64;
+    private static readonly READBACK_THUMB_SIZE = 128;
     /** Timeout for the entire readback operation (ms). */
     private static readonly READBACK_TIMEOUT_MS = 5000;
 
