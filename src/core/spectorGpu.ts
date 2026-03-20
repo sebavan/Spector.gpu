@@ -1185,8 +1185,9 @@ export class SpectorGPU {
                 const width = info.size.width;
                 const height = info.size.height;
                 const layers = info.size.depthOrArrayLayers;
-                // Read all faces for cubes (6 layers), otherwise just layer 0
-                const layerCount = layers === 6 ? 6 : 1;
+                // Read all faces for cubes (6 layers + confirmed cube view), otherwise just layer 0
+                const isCube = layers === 6 && this._recorderManager.hasTextureCubeView(id);
+                const layerCount = isCube ? 6 : 1;
                 const bytesPerRow = Math.ceil((width * bpp) / 256) * 256;
                 const perLayerSize = bytesPerRow * height;
 
