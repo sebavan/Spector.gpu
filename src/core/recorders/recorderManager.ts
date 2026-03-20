@@ -46,6 +46,7 @@ export class RecorderManager {
     private _computePipelines = new Map<string, IComputePipelineInfo>();
     private _bindGroups = new Map<string, IBindGroupInfo>();
     private _bindGroupLayouts = new Map<string, IBindGroupLayoutInfo>();
+    private _destroyedTextures = new Set<string>();
 
     // ─── Object ID tracking ──────────────────────────────────────────
 
@@ -179,11 +180,17 @@ export class RecorderManager {
     }
 
     public recordTextureDestroy(texture: object): void {
-        // Intentional no-op: we keep the info because captures,
-        // texture views, and bind groups may still reference it.
-        // The WeakMap entry will be collected when the GPU object is GC'd.
-        const _id = this._objectIds.get(texture);
-        void _id;
+        // Mark as destroyed so readback can skip it, but keep the info
+        // because captures, texture views, and bind groups may still reference it.
+        const id = this._objectIds.get(texture);
+        if (id) {
+            this._destroyedTextures.add(id);
+        }
+    }
+
+    /** Check if a texture has been destroyed. */
+    public isTextureDestroyed(textureId: string): boolean {
+        return this._destroyedTextures.has(textureId);
     }
 
     // ─── Texture View ────────────────────────────────────────────────
@@ -443,5 +450,6 @@ export class RecorderManager {
         this._computePipelines.clear();
         this._bindGroups.clear();
         this._bindGroupLayouts.clear();
+        this._destroyedTextures.clear();
     }
 }

@@ -1114,7 +1114,7 @@ export class SpectorGPU {
         device: GPUDevice,
         textures: ReadonlyMap<string, ITextureInfo>,
     ): Promise<void> {
-        // Collect readable textures
+        // Collect readable textures (skip destroyed ones)
         const readable: Array<{ id: string; info: ITextureInfo; gpuTexture: GPUTexture }> = [];
 
         for (const [id, info] of textures) {
@@ -1125,6 +1125,7 @@ export class SpectorGPU {
             if (info.size.width === 0 || info.size.height === 0) continue;
             if (!isReadableFormat(info.format)) continue;
             if (!(info.usage & 0x01)) continue; // COPY_SRC
+            if (this._recorderManager.isTextureDestroyed(id)) continue;
 
             const obj = this._recorderManager.getObject(id);
             if (!obj) continue;
@@ -1136,9 +1137,8 @@ export class SpectorGPU {
 
         Logger.info(`Reading back ${readable.length} textures...`);
 
-        // Use validation error scope to detect copy failures
-        device.pushErrorScope('validation');
-
+        // Read back each texture individually with its own error scope
+        // so one failed copy doesn't abort the rest.
         const tasks: Array<{
             id: string;
             info: ITextureInfo;
@@ -1147,8 +1147,6 @@ export class SpectorGPU {
             width: number;
             height: number;
         }> = [];
-
-        const encoder = device.createCommandEncoder();
 
         for (const { id, info, gpuTexture } of readable) {
             try {
@@ -1162,16 +1160,28 @@ export class SpectorGPU {
 
                 if (bufferSize === 0 || bufferSize > 64 * 1024 * 1024) continue;
 
+                // Per-texture error scope — catches destroyed/invalid textures
+                device.pushErrorScope('validation');
+
                 const buffer = device.createBuffer({
                     size: bufferSize,
                     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
                 });
 
+                const encoder = device.createCommandEncoder();
                 encoder.copyTextureToBuffer(
                     { texture: gpuTexture, mipLevel: 0 },
                     { buffer, bytesPerRow, rowsPerImage: height },
                     { width, height, depthOrArrayLayers: 1 },
                 );
+                device.queue.submit([encoder.finish()]);
+
+                const err = await device.popErrorScope();
+                if (err) {
+                    Logger.warn(`Readback copy failed for ${id}: ${(err as GPUValidationError).message}`);
+                    buffer.destroy();
+                    continue;
+                }
 
                 tasks.push({ id, info, buffer, bytesPerRow, width, height });
             } catch (e) {
@@ -1179,22 +1189,7 @@ export class SpectorGPU {
             }
         }
 
-        if (tasks.length === 0) {
-            await device.popErrorScope();
-            return;
-        }
-
-        device.queue.submit([encoder.finish()]);
-
-        // Check for validation errors from the copy commands
-        const validationError = await device.popErrorScope();
-        if (validationError) {
-            Logger.warn('Texture readback validation error:', (validationError as GPUValidationError).message);
-            for (const t of tasks) {
-                try { t.buffer.destroy(); } catch { /* ignore */ }
-            }
-            return;
-        }
+        if (tasks.length === 0) return;
 
         // Map all staging buffers in parallel, with a timeout
         try {

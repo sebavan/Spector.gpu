@@ -124,10 +124,12 @@ export class DeviceSpy {
         globalOriginStore.save(device, 'createTexture');
         patchMethod(device, 'createTexture', {
             before(_methodName, args) {
-                // Silently add COPY_SRC so we can read back texture data for previews.
+                // Add COPY_SRC so we can read back texture data for previews.
+                // CRITICAL: clone the descriptor — mutating the app's object
+                // breaks engines that inspect usage after createTexture.
                 const desc = args[0] as Record<string, unknown> | undefined;
                 if (desc && typeof desc.usage === 'number') {
-                    desc.usage = (desc.usage as number) | 0x01; // GPUTextureUsage.COPY_SRC
+                    return [{ ...desc, usage: (desc.usage as number) | 0x01 }];
                 }
             },
             after(methodName, args, result) {
