@@ -1,27 +1,53 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { ICapture, ICommandNode } from '@shared/types';
 import { readCapture } from '@shared/utils/captureStorage';
-import { CommandTree } from './CommandTree';
 import { CommandDetail } from './CommandDetail';
 import { ShaderEditor } from './ShaderEditor';
 import { PipelineInspector } from './PipelineInspector';
-import { ResourceInspector } from './ResourceInspector';
 import { CaptureHeader } from './CaptureHeader';
-import { NavigationContext, type NavigationTarget } from './NavigationContext';
+import { NavigationContext, type NavigationTarget, type ResourceCategory } from './NavigationContext';
+import { SidebarPanel } from './SidebarPanel';
+import { DraggableDivider } from './DraggableDivider';
+import { ResourceDetail } from './ResourceDetail';
+import { resolveMapToRecord } from '../resourceMapHelpers';
 
-type DetailTab = 'detail' | 'shader' | 'pipeline' | 'resources';
+type CommandTab = 'detail' | 'shader' | 'pipeline';
+type SidebarMode = 'commands' | 'resources';
+
+const MIN_LEFT_WIDTH = 200;
+const MAX_LEFT_WIDTH = 500;
+const DEFAULT_LEFT_WIDTH = 320;
+
+/** Category key → human label for breadcrumbs. */
+const CATEGORY_LABELS: Record<ResourceCategory, string> = {
+    buffers: 'Buffers',
+    textures: 'Textures',
+    textureViews: 'Texture Views',
+    samplers: 'Samplers',
+    shaderModules: 'Shader Modules',
+    renderPipelines: 'Render Pipelines',
+    computePipelines: 'Compute Pipelines',
+    bindGroups: 'Bind Groups',
+    bindGroupLayouts: 'Bind Group Layouts',
+};
 
 export function ResultApp() {
     const [capture, setCapture] = useState<ICapture | null>(null);
     const [selectedNode, setSelectedNode] = useState<ICommandNode | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<DetailTab>('detail');
-    const [resourceNavTarget, setResourceNavTarget] = useState<NavigationTarget | null>(null);
+    const [activeTab, setActiveTab] = useState<CommandTab>('detail');
+
+    // Sidebar state
+    const [sidebarMode, setSidebarMode] = useState<SidebarMode>('commands');
+    const [selectedResourceCategory, setSelectedResourceCategory] = useState<ResourceCategory | null>(null);
+    const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
+    const [leftPanelWidth, setLeftPanelWidth] = useState(DEFAULT_LEFT_WIDTH);
 
     const navigateToResource = useCallback((target: NavigationTarget) => {
-        setActiveTab('resources');
-        setResourceNavTarget(target);
+        setSidebarMode('resources');
+        setSelectedResourceCategory(target.category);
+        setSelectedResourceId(target.id);
     }, []);
 
     useEffect(() => {
@@ -53,9 +79,32 @@ export function ResultApp() {
             .finally(() => setLoading(false));
     }, []);
 
-    const handleSelect = useCallback((node: ICommandNode) => {
+    const handleSelectCommand = useCallback((node: ICommandNode) => {
         setSelectedNode(node);
     }, []);
+
+    const handleSelectResource = useCallback((category: ResourceCategory, id: string) => {
+        setSelectedResourceCategory(category);
+        setSelectedResourceId(id);
+    }, []);
+
+    const handleDividerDrag = useCallback((deltaX: number) => {
+        setLeftPanelWidth(prev => {
+            const next = prev + deltaX;
+            if (next < MIN_LEFT_WIDTH) return MIN_LEFT_WIDTH;
+            if (next > MAX_LEFT_WIDTH) return MAX_LEFT_WIDTH;
+            return next;
+        });
+    }, []);
+
+    // Resolve the currently selected resource object for the detail panel
+    const selectedResource = useMemo(() => {
+        if (!capture || !selectedResourceCategory || !selectedResourceId) return null;
+        const record = resolveMapToRecord(
+            capture.resources[selectedResourceCategory] as Map<string, unknown>,
+        );
+        return record[selectedResourceId] ?? null;
+    }, [capture, selectedResourceCategory, selectedResourceId]);
 
     if (loading) {
         return <div className="loading">Loading capture…</div>;
@@ -65,31 +114,55 @@ export function ResultApp() {
         return <div className="error">{error ?? 'Unknown error'}</div>;
     }
 
+    // Build breadcrumb
+    const breadcrumb = sidebarMode === 'resources'
+        ? buildResourceBreadcrumb(selectedResourceCategory, selectedResourceId)
+        : buildCommandBreadcrumb(selectedNode);
+
     return (
         <NavigationContext.Provider value={navigateToResource}>
             <div className="result-app">
                 <CaptureHeader capture={capture} />
                 <div className="result-content">
-                    <div className="left-panel">
-                        <CommandTree
-                            commands={capture.commands}
-                            selectedId={selectedNode?.id ?? null}
-                            onSelect={handleSelect}
+                    <div className="left-panel" style={{ width: leftPanelWidth }}>
+                        <SidebarPanel
+                            capture={capture}
+                            mode={sidebarMode}
+                            onModeChange={setSidebarMode}
+                            selectedCommandId={selectedNode?.id ?? null}
+                            onSelectCommand={handleSelectCommand}
+                            selectedResourceCategory={selectedResourceCategory}
+                            selectedResourceId={selectedResourceId}
+                            onSelectResource={handleSelectResource}
                         />
                     </div>
+                    <DraggableDivider onDrag={handleDividerDrag} />
                     <div className="right-panel">
-                        <div className="tab-bar">
-                            <TabButton label="Details"   tab="detail"    active={activeTab} onClick={setActiveTab} />
-                            <TabButton label="Shaders"   tab="shader"    active={activeTab} onClick={setActiveTab} />
-                            <TabButton label="Pipeline"  tab="pipeline"  active={activeTab} onClick={setActiveTab} />
-                            <TabButton label="Resources" tab="resources" active={activeTab} onClick={setActiveTab} />
+                        <div className="breadcrumb">
+                            {breadcrumb}
                         </div>
-                        <div className="tab-content">
-                            {activeTab === 'detail'    && <CommandDetail node={selectedNode} capture={capture} />}
-                            {activeTab === 'shader'    && <ShaderEditor node={selectedNode} capture={capture} />}
-                            {activeTab === 'pipeline'  && <PipelineInspector node={selectedNode} capture={capture} />}
-                            {activeTab === 'resources' && <ResourceInspector capture={capture} navTarget={resourceNavTarget} />}
-                        </div>
+                        {sidebarMode === 'commands' ? (
+                            <>
+                                <div className="tab-bar">
+                                    <TabButton label="Details"  tab="detail"   active={activeTab} onClick={setActiveTab} />
+                                    <TabButton label="Shaders"  tab="shader"   active={activeTab} onClick={setActiveTab} />
+                                    <TabButton label="Pipeline" tab="pipeline" active={activeTab} onClick={setActiveTab} />
+                                </div>
+                                <div className="tab-content">
+                                    {activeTab === 'detail'   && <CommandDetail node={selectedNode} capture={capture} />}
+                                    {activeTab === 'shader'   && <ShaderEditor node={selectedNode} capture={capture} />}
+                                    {activeTab === 'pipeline' && <PipelineInspector node={selectedNode} capture={capture} />}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="tab-content">
+                                <ResourceDetail
+                                    category={selectedResourceCategory ?? ''}
+                                    resource={selectedResource}
+                                    capture={capture}
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -97,11 +170,57 @@ export function ResultApp() {
     );
 }
 
+// ── Breadcrumb helpers ────────────────────────────────────────────────
+
+function buildCommandBreadcrumb(node: ICommandNode | null): React.ReactNode {
+    if (!node) {
+        return <span className="crumb-active">Commands</span>;
+    }
+    // Walk up the command path — for now we just show the node name since
+    // we don't have easy access to the full parent chain in the flat state.
+    return (
+        <>
+            <span>Commands</span>
+            <span className="sep">›</span>
+            <span className="crumb-active">{node.name}</span>
+        </>
+    );
+}
+
+function buildResourceBreadcrumb(
+    category: ResourceCategory | null,
+    id: string | null,
+): React.ReactNode {
+    if (!category) {
+        return <span className="crumb-active">Resources</span>;
+    }
+    if (!id) {
+        return (
+            <>
+                <span>Resources</span>
+                <span className="sep">›</span>
+                <span className="crumb-active">{CATEGORY_LABELS[category]}</span>
+            </>
+        );
+    }
+    return (
+        <>
+            <span>Resources</span>
+            <span className="sep">›</span>
+            <span>{CATEGORY_LABELS[category]}</span>
+            <span className="sep">›</span>
+            <span className="crumb-active">{id}</span>
+        </>
+    );
+}
+
+// ── Tab button ────────────────────────────────────────────────────────
+
 function TabButton({ label, tab, active, onClick }: {
     label: string;
-    tab: DetailTab;
-    active: DetailTab;
-    onClick: (t: DetailTab) => void;
+    tab: CommandTab;
+    active: CommandTab;
+    onClick: (t: CommandTab) => void;
 }) {
     const handleClick = useCallback(() => onClick(tab), [onClick, tab]);
     return (

@@ -109,11 +109,14 @@ body {
 }
 
 .left-panel {
-    width: 360px;
-    min-width: 280px;
-    border-right: 1px solid $border;
+    min-width: 200px;
+    max-width: 500px;
     overflow-y: auto;
+    overflow-x: hidden;
     background: $bg-secondary;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
 }
 
 .right-panel {
@@ -783,6 +786,125 @@ $gutter-width: 48px;
         .comp-type { font-weight: 700; min-width: 60px; }
         .comp-line { color: $text-muted; min-width: 80px; }
     }
+}
+
+// ─── Sidebar panel (mode toggle + content) ──────────────────────────
+
+.sidebar-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.mode-toggle {
+    display: flex;
+    background: $bg-primary;
+    border-bottom: 1px solid $border;
+    flex-shrink: 0;
+
+    button {
+        flex: 1;
+        padding: 6px 0;
+        background: none;
+        border: none;
+        color: $text-secondary;
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 600;
+        border-bottom: 2px solid transparent;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: color 0.1s, border-color 0.1s;
+
+        &:hover { color: $text-primary; }
+        &.active {
+            color: $accent;
+            border-bottom-color: $accent;
+            background: $bg-secondary;
+        }
+    }
+}
+
+// ─── Resource browser (collapsible groups in sidebar) ────────────────
+
+.resource-browser {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.res-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: $text-secondary;
+    border-bottom: 1px solid $border;
+
+    &:hover { background: $bg-hover; }
+
+    .g-toggle {
+        font-size: 9px;
+        color: $text-muted;
+        width: 12px;
+    }
+
+    .g-count {
+        color: $text-muted;
+        font-weight: 400;
+        font-size: 10px;
+        margin-left: auto;
+    }
+}
+
+.res-empty {
+    padding: 4px 28px;
+    font-size: 11px;
+}
+
+// ─── Breadcrumb ──────────────────────────────────────────────────────
+
+.breadcrumb {
+    padding: 6px 12px;
+    font-size: 11px;
+    color: $text-muted;
+    border-bottom: 1px solid $border;
+    flex-shrink: 0;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+
+    .sep { margin: 0 4px; }
+    .crumb-active { color: $accent; }
+}
+
+// ─── Draggable divider ──────────────────────────────────────────────
+
+.divider-v {
+    width: 4px;
+    cursor: col-resize;
+    background: $border;
+    flex-shrink: 0;
+    position: relative;
+    transition: background 0.15s;
+
+    &:hover, &.dragging { background: $accent; }
+
+    &::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 2px;
+        height: 24px;
+        border-radius: 1px;
+        background: $text-muted;
+        opacity: 0.5;
+    }
+
+    &:hover::after { opacity: 1; background: $accent; }
 }
 
 // ─────────────────────────────────────────────────────────────────────

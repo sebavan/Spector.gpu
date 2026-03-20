@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpectorGPU — Panel Layout Rework Mocks</title>
+<style>
+/* ── Reset & base ──────────────────────────────────────────────── */
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;
+  background:#060608; color:#e0e0e0; font-size:13px; line-height:1.5;
+  padding:32px 48px;
+}
+h1.page-title { font-size:22px; color:#4fc3f7; margin-bottom:8px; }
+p.page-desc { color:#9090a0; margin-bottom:40px; font-size:14px; }
+
+/* ── Design tokens (matching current dark theme) ───────────────── */
+:root {
+  --bg-primary:   #0a0a0f;
+  --bg-secondary: #111118;
+  --bg-tertiary:  #1a1a24;
+  --bg-hover:     #222230;
+  --bg-selected:  #2a2a3c;
+  --text-primary: #e0e0e0;
+  --text-secondary:#9090a0;
+  --text-muted:   #606070;
+  --accent:       #4fc3f7;
+  --accent-dark:  #2196f3;
+  --border:       #1f1f30;
+  --submit:       #ff9800;
+  --renderpass:   #4caf50;
+  --computepass:  #9c27b0;
+  --draw:         #2196f3;
+  --dispatch:     #e91e63;
+  --state:        #607d8b;
+  --radius:       2px;
+}
+
+/* ── Mock container ────────────────────────────────────────────── */
+.mock-section {
+  margin-bottom:56px;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+.mock-label {
+  background:var(--bg-secondary);
+  padding:14px 20px;
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:baseline; gap:12px;
+}
+.mock-label h2 {
+  font-size:15px; font-weight:700; color:var(--accent);
+}
+.mock-label .mock-num {
+  font-size:11px; font-weight:700; color:var(--text-muted);
+  text-transform:uppercase; letter-spacing:1px;
+}
+.mock-label p {
+  font-size:12px; color:var(--text-secondary); margin-left:auto;
+}
+
+/* ── Shared mock frame (simulates the app window) ──────────────── */
+.mock-frame {
+  background:var(--bg-primary);
+  height:520px;
+  display:flex; flex-direction:column;
+}
+
+/* ── Header (shared across all mocks) ──────────────────────────── */
+.header {
+  background:var(--bg-secondary);
+  border-bottom:1px solid var(--border);
+  padding:8px 16px;
+  display:flex; align-items:center; justify-content:space-between;
+  flex-shrink:0;
+}
+.header-left { display:flex; align-items:baseline; gap:10px; }
+.header-left h1 { font-size:14px; font-weight:600; color:var(--accent); }
+.header-left .gpu-name { font-size:11px; color:var(--text-secondary); }
+.header-stats { display:flex; gap:14px; }
+.stat { text-align:center; }
+.stat-val { display:block; font-size:14px; font-weight:700; color:var(--accent); }
+.stat-lbl { display:block; font-size:9px; color:var(--text-muted); text-transform:uppercase; }
+
+/* ── Content area ──────────────────────────────────────────────── */
+.content { display:flex; flex:1; overflow:hidden; }
+
+/* ── Panels ────────────────────────────────────────────────────── */
+.panel {
+  overflow-y:auto; display:flex; flex-direction:column;
+}
+.panel-header {
+  padding:8px 12px;
+  border-bottom:1px solid var(--border);
+  font-size:12px; font-weight:600; color:var(--text-primary);
+  flex-shrink:0;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.panel-header .count { color:var(--text-muted); font-weight:400; font-size:11px; }
+
+/* ── Draggable divider ─────────────────────────────────────────── */
+.divider-v {
+  width:4px; cursor:col-resize; background:var(--border);
+  flex-shrink:0; position:relative;
+  transition:background .15s;
+}
+.divider-v:hover, .divider-v:active { background:var(--accent); }
+.divider-v::after {
+  content:''; position:absolute; top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  width:2px; height:24px; border-radius:1px;
+  background:var(--text-muted); opacity:.5;
+}
+.divider-v:hover::after { opacity:1; background:var(--accent); }
+
+.divider-h {
+  height:4px; cursor:row-resize; background:var(--border);
+  flex-shrink:0; position:relative;
+  transition:background .15s;
+}
+.divider-h:hover, .divider-h:active { background:var(--accent); }
+.divider-h::after {
+  content:''; position:absolute; top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  width:24px; height:2px; border-radius:1px;
+  background:var(--text-muted); opacity:.5;
+}
+.divider-h:hover::after { opacity:1; background:var(--accent); }
+
+/* ── Tree nodes ────────────────────────────────────────────────── */
+.tree-node {
+  display:flex; align-items:center; padding:3px 8px; gap:5px;
+  cursor:pointer; font-size:12px;
+  font-family:'Cascadia Code','Fira Code','Consolas',monospace;
+}
+.tree-node:hover { background:var(--bg-hover); }
+.tree-node.selected { background:var(--bg-selected); border-left:2px solid var(--accent); }
+.toggle { font-size:9px; width:12px; color:var(--text-muted); flex-shrink:0; }
+.badge {
+  font-size:8px; font-weight:700; padding:1px 4px;
+  border-radius:var(--radius); text-transform:uppercase; flex-shrink:0;
+}
+.badge-sub  { background:rgba(255,152,0,.2);  color:var(--submit); }
+.badge-rp   { background:rgba(76,175,80,.2);  color:var(--renderpass); }
+.badge-cp   { background:rgba(156,39,176,.2); color:var(--computepass); }
+.badge-drw  { background:rgba(33,150,243,.2); color:var(--draw); }
+.badge-dsp  { background:rgba(233,30,99,.2);  color:var(--dispatch); }
+.badge-st   { background:rgba(96,125,139,.2); color:var(--state); }
+.badge-cmd  { background:rgba(96,96,112,.2);  color:var(--text-muted); }
+.node-name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.child-count { color:var(--text-muted); font-size:10px; flex-shrink:0; }
+.thumb { width:28px; height:20px; border-radius:var(--radius); border:1px solid var(--border); background:#2a3a5a; margin-left:auto; flex-shrink:0; }
+
+/* ── Tab bar ───────────────────────────────────────────────────── */
+.tab-bar {
+  display:flex; background:var(--bg-secondary);
+  border-bottom:1px solid var(--border); flex-shrink:0;
+}
+.tab-bar button {
+  padding:6px 14px; background:none; border:none;
+  color:var(--text-secondary); cursor:pointer; font-size:12px;
+  border-bottom:2px solid transparent; transition:color .1s, border-color .1s;
+}
+.tab-bar button:hover { color:var(--text-primary); background:var(--bg-hover); }
+.tab-bar button.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+/* ── Resource list items ───────────────────────────────────────── */
+.res-item {
+  display:flex; align-items:center; gap:5px; padding:4px 10px;
+  cursor:pointer; border-bottom:1px solid var(--border); font-size:11px;
+  font-family:'Cascadia Code','Consolas',monospace;
+}
+.res-item:hover { background:var(--bg-hover); }
+.res-item.selected { background:var(--bg-selected); }
+.res-label { color:var(--text-muted); font-size:10px; }
+
+/* ── Category buttons ──────────────────────────────────────────── */
+.cat-btn {
+  padding:4px 10px; background:var(--bg-tertiary); border:1px solid var(--border);
+  border-radius:var(--radius); color:var(--text-secondary); cursor:pointer;
+  font-size:11px; transition:background .1s;
+}
+.cat-btn:hover { background:var(--bg-hover); }
+.cat-btn.active { background:var(--accent-dark); color:white; border-color:var(--accent); }
+
+/* ── Detail panel placeholder ──────────────────────────────────── */
+.detail-placeholder {
+  color:var(--text-muted); text-align:center; padding:40px; font-size:13px;
+}
+.detail-section { margin-bottom:14px; }
+.detail-section h4 {
+  font-size:11px; text-transform:uppercase; color:var(--text-muted);
+  margin-bottom:6px; letter-spacing:.5px;
+}
+.detail-grid {
+  display:grid; grid-template-columns:100px 1fr; gap:3px 10px; font-size:12px;
+}
+.detail-grid .lbl { color:var(--text-muted); }
+.detail-grid .val { color:var(--text-primary); font-family:'Cascadia Code','Consolas',monospace; }
+
+/* ── Code block ────────────────────────────────────────────────── */
+.code-block {
+  background:var(--bg-tertiary); border:1px solid var(--border);
+  border-radius:var(--radius); padding:10px 12px; overflow:auto;
+  font-family:'Cascadia Code','Fira Code','Consolas',monospace;
+  font-size:11px; line-height:1.6; color:var(--text-primary);
+  max-height:180px;
+}
+.kw { color:#c586c0; } .ty { color:#4ec9b0; } .fn { color:#dcdcaa; }
+.cm { color:#6a9955; font-style:italic; } .num { color:#b5cea8; }
+
+/* ── Resource category group ───────────────────────────────────── */
+.res-group-header {
+  display:flex; align-items:center; gap:6px; padding:6px 10px;
+  cursor:pointer; font-size:12px; font-weight:600; color:var(--text-secondary);
+  border-bottom:1px solid var(--border);
+}
+.res-group-header:hover { background:var(--bg-hover); }
+.res-group-header .g-toggle { font-size:9px; color:var(--text-muted); width:12px; }
+.res-group-header .g-count { color:var(--text-muted); font-weight:400; font-size:10px; margin-left:auto; }
+
+/* ── Texture swatch ────────────────────────────────────────────── */
+.tex-swatch {
+  width:20px; height:14px; border-radius:var(--radius);
+  border:1px solid var(--border); flex-shrink:0;
+}
+
+/* ── Mode toggle (for Mock 2) ──────────────────────────────────── */
+.mode-toggle {
+  display:flex; background:var(--bg-primary); border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.mode-toggle button {
+  flex:1; padding:6px 0; background:none; border:none;
+  color:var(--text-secondary); cursor:pointer; font-size:11px; font-weight:600;
+  border-bottom:2px solid transparent; text-transform:uppercase; letter-spacing:.5px;
+}
+.mode-toggle button:hover { color:var(--text-primary); }
+.mode-toggle button.active { color:var(--accent); border-bottom-color:var(--accent); background:var(--bg-secondary); }
+
+/* ── Breadcrumb ────────────────────────────────────────────────── */
+.breadcrumb {
+  padding:6px 12px; font-size:11px; color:var(--text-muted);
+  border-bottom:1px solid var(--border); flex-shrink:0;
+  font-family:'Cascadia Code','Consolas',monospace;
+}
+.breadcrumb .sep { margin:0 4px; }
+.breadcrumb .crumb-active { color:var(--accent); }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">SpectorGPU — Panel Layout Rework</h1>
+<p class="page-desc">4 layout proposals: Commands + Resources on the left, detail on the right, draggable splits, context-sensitive tabs.</p>
+
+<!-- ════════════════════════════════════════════════════════════════
+     MOCK 1: Stacked Dual-List Sidebar
+     ════════════════════════════════════════════════════════════════ -->
+<div class="mock-section">
+  <div class="mock-label">
+    <span class="mock-num">Mock 1</span>
+    <h2>Stacked Dual-List Sidebar</h2>
+    <p>Commands (top) and Resources (bottom) share the left panel with a draggable horizontal split. Selecting either shows its detail on the right.</p>
+  </div>
+  <div class="mock-frame">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-left">
+        <h1>SpectorGPU</h1>
+        <span class="gpu-name">NVIDIA GeForce RTX 4090</span>
+      </div>
+      <div class="header-stats">
+        <div class="stat"><span class="stat-val">847</span><span class="stat-lbl">Commands</span></div>
+        <div class="stat"><span class="stat-val">128</span><span class="stat-lbl">Draw Calls</span></div>
+        <div class="stat"><span class="stat-val">6</span><span class="stat-lbl">Render Passes</span></div>
+        <div class="stat"><span class="stat-val">42</span><span class="stat-lbl">Textures</span></div>
+        <div class="stat"><span class="stat-val">2.4ms</span><span class="stat-lbl">Duration</span></div>
+      </div>
+    </div>
+    <!-- Content -->
+    <div class="content">
+      <!-- Left: stacked panels -->
+      <div style="width:320px; display:flex; flex-direction:column; border-right:1px solid var(--border);">
+        <!-- Commands (top half) -->
+        <div class="panel" style="flex:1; min-height:0;">
+          <div class="panel-header">Commands <span class="count">847</span></div>
+          <div style="overflow-y:auto; flex:1;">
+            <div class="tree-node" style="padding-left:8px"><span class="toggle">▼</span><span class="badge badge-sub">SUB</span><span class="node-name">queue.submit</span><span class="child-count">(3)</span></div>
+            <div class="tree-node" style="padding-left:28px"><span class="toggle">▼</span><span class="badge badge-rp">RP</span><span class="node-name">encoder.beginRenderPass</span><span class="child-count">(45)</span><span class="thumb"></span></div>
+            <div class="tree-node" style="padding-left:48px"><span class="toggle">&nbsp;</span><span class="badge badge-st">PIP</span><span class="node-name">renderPass.setPipeline</span></div>
+            <div class="tree-node" style="padding-left:48px"><span class="toggle">&nbsp;</span><span class="badge badge-st">BND</span><span class="node-name">renderPass.setBindGroup</span></div>
+            <div class="tree-node selected" style="padding-left:48px"><span class="toggle">&nbsp;</span><span class="badge badge-drw">DRW</span><span class="node-name">renderPass.drawIndexed</span><span class="thumb"></span></div>
+            <div class="tree-node" style="padding-left:48px"><span class="toggle">&nbsp;</span><span class="badge badge-st">PIP</span><span class="node-name">renderPass.setPipeline</span></div>
+            <div class="tree-node" style="padding-left:48px"><span class="toggle">&nbsp;</span><span class="badge badge-drw">DRW</span><span class="node-name">renderPass.draw</span></div>
+            <div class="tree-node" style="padding-left:48px"><span class="toggle">&nbsp;</span><span class="badge badge-cmd">END</span><span class="node-name">renderPass.end</span></div>
+            <div class="tree-node" style="padding-left:28px"><span class="toggle">▶</span><span class="badge badge-cp">CP</span><span class="node-name">encoder.beginComputePass</span><span class="child-count">(12)</span></div>
+          </div>
+        </div>
+        <!-- Horizontal divider -->
+        <div class="divider-h"></div>
+        <!-- Resources (bottom half) -->
+        <div class="panel" style="flex:1; min-height:0;">
+          <div class="panel-header">Resources <span class="count">42 textures</span></div>
+          <div style="display:flex; flex-wrap:wrap; gap:3px; padding:6px 8px; border-bottom:1px solid var(--border);">
+            <button class="cat-btn active">Textures (42)</button>
+            <button class="cat-btn">Buffers (18)</button>
+            <button class="cat-btn">Shaders (7)</button>
+            <button class="cat-btn">Pipelines (9)</button>
+          </div>
+          <div style="overflow-y:auto; flex:1;">
+            <div class="res-item"><span class="tex-swatch" style="background:#2a3a5a"></span>tex_0 <span class="res-label">Canvas Texture</span></div>
+            <div class="res-item"><span class="tex-swatch" style="background:#4a3060"></span>tex_1 <span class="res-label">depth24plus 1920×1080</span></div>
+            <div class="res-item selected"><span class="tex-swatch" style="background:#2a4a2a"></span>tex_2 <span class="res-label">rgba16float 512×512</span></div>
+            <div class="res-item"><span class="tex-swatch" style="background:#2a3a5a"></span>tex_3 <span class="res-label">rgba8unorm 256×256</span></div>
+            <div class="res-item"><span class="tex-swatch" style="background:#2a3a5a"></span>tex_4 <span class="res-label">rgba8unorm 1024×1024</span></div>
+            <div class="res-item"><span class="tex-swatch" style="background:#4a3060"></span>tex_5 <span class="res-label">depth32float 2048×2048</span></div>
+          </div>
+        </div>
+      </div>
+      <!-- Vertical divider -->
+      <div class="divider-v"></div>
+      <!-- Right: detail (context-sensitive) -->
+      <div class="panel" style="flex:1;">
+        <div class="tab-bar">
+          <button class="active">Details</button>
+          <button>Shaders</button>
+          <button>Pipeline</button>
+        </div>
+        <div style="padding:14px; overflow-y:auto; flex:1;">
+          <h3 style="font-size:14px; color:var(--accent); margin-bottom:14px; font-family:'Cascadia Code','Consolas',monospace;">renderPass.drawIndexed</h3>
+          <div class="detail-section">
+            <h4>Info</h4>
+            <div class="detail-grid">
+              <span class="lbl">Type:</span><span class="val">draw</span>
+              <span class="lbl">Pipeline:</span><span class="val" style="color:var(--accent); cursor:pointer;">rp_3</span>
+              <span class="lbl">Bind Groups:</span><span class="val" style="color:var(--accent);">bg_0, bg_1</span>
+              <span class="lbl">Vertex Buffers:</span><span class="val" style="color:var(--accent);">buf_7, buf_8</span>
+              <span class="lbl">Index Buffer:</span><span class="val" style="color:var(--accent);">buf_9</span>
+            </div>
+          </div>
+          <div class="detail-section">
+            <h4>Arguments</h4>
+            <div class="detail-grid">
+              <span class="lbl">indexCount:</span><span class="val">36</span>
+              <span class="lbl">instanceCount:</span><span class="val">1</span>
+              <span class="lbl">firstIndex:</span><span class="val">0</span>
+              <span class="lbl">baseVertex:</span><span class="val">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     MOCK 2: Toggle-Mode Sidebar
+     ════════════════════════════════════════════════════════════════ -->
+<div class="mock-section">
+  <div class="mock-label">
+    <span class="mock-num">Mock 2</span>
+    <h2>Toggle-Mode Sidebar</h2>
+    <p>Left panel switches between Commands and Resources via a top toggle. Resource mode replaces the right-panel tabs with category tabs (Buffers, Textures, etc.).</p>
+  </div>
+  <div class="mock-frame">
+    <div class="header">
+      <div class="header-left">
+        <h1>SpectorGPU</h1>
+        <span class="gpu-name">NVIDIA GeForce RTX 4090</span>
+      </div>
+      <div class="header-stats">
+        <div class="stat"><span class="stat-val">847</span><span class="stat-lbl">Commands</span></div>
+        <div class="stat"><span class="stat-val">128</span><span class="stat-lbl">Draw Calls</span></div>
+        <div class="stat"><span class="stat-val">6</span><span class="stat-lbl">Render Passes</span></div>
+        <div class="stat"><span class="stat-val">42</span><span class="stat-lbl">Textures</span></div>
+        <div class="stat"><span class="stat-val">2.4ms</span><span class="stat-lbl">Duration</span></div>
+      </div>
+    </div>
+    <div class="content">
+      <!-- Left panel with mode toggle (showing Resources mode) -->
+      <div style="width:300px; display:flex; flex-direction:column; border-right:1px solid var(--border);">
+        <div class="mode-toggle">
+          <button>Commands</button>
+          <button class="active">Resources</button>
+        </div>
+        <!-- Resource categories as grouped lists -->
+        <div style="overflow-y:auto; flex:1;">
+          <div class="res-group-header"><span class="g-toggle">▼</span> Textures <span class="g-count">42</span></div>
+          <div class="res-item"><span class="tex-swatch" style="background:#2a3a5a"></span>tex_0 <span class="res-label">Canvas 1920×1080</span></div>
+          <div class="res-item selected"><span class="tex-swatch" style="background:#4a3060"></span>tex_1 <span class="res-label">depth24plus 1920×1080</span></div>
+          <div class="res-item"><span class="tex-swatch" style="background:#2a4a2a"></span>tex_2 <span class="res-label">rgba16float 512×512</span></div>
+          <div class="res-item"><span class="tex-swatch" style="background:#2a3a5a"></span>tex_3 <span class="res-label">rgba8unorm 256×256</span></div>
+          <div class="res-group-header"><span class="g-toggle">▼</span> Shader Modules <span class="g-count">7</span></div>
+          <div class="res-item">shd_0 <span class="res-label">PBR vertex</span></div>
+          <div class="res-item">shd_1 <span class="res-label">PBR fragment</span></div>
+          <div class="res-item">shd_2 <span class="res-label">Shadow map</span></div>
+          <div class="res-group-header"><span class="g-toggle">▶</span> Buffers <span class="g-count">18</span></div>
+          <div class="res-group-header"><span class="g-toggle">▶</span> Render Pipelines <span class="g-count">9</span></div>
+          <div class="res-group-header"><span class="g-toggle">▶</span> Bind Groups <span class="g-count">14</span></div>
+          <div class="res-group-header"><span class="g-toggle">▶</span> Samplers <span class="g-count">3</span></div>
+        </div>
+      </div>
+      <div class="divider-v"></div>
+      <!-- Right: resource detail (tabs become resource-specific) -->
+      <div class="panel" style="flex:1;">
+        <!-- Breadcrumb showing navigation path -->
+        <div class="breadcrumb">
+          Resources <span class="sep">›</span> Textures <span class="sep">›</span> <span class="crumb-active">tex_1</span>
+        </div>
+        <div style="padding:14px; overflow-y:auto; flex:1;">
+          <h3 style="font-size:14px; color:var(--accent); margin-bottom:14px; font-family:'Cascadia Code','Consolas',monospace;">tex_1 — depth24plus</h3>
+          <div style="width:180px; height:100px; background:#4a3060; border:1px solid var(--border); border-radius:var(--radius); display:flex; align-items:center; justify-content:center; margin-bottom:12px;">
+            <span style="color:rgba(255,255,255,.5); font-size:11px; font-family:monospace;">1920 × 1080</span>
+          </div>
+          <div class="detail-section">
+            <h4>Properties</h4>
+            <div class="detail-grid">
+              <span class="lbl">Format:</span><span class="val">depth24plus</span>
+              <span class="lbl">Dimension:</span><span class="val">2d</span>
+              <span class="lbl">Size:</span><span class="val">1920 × 1080</span>
+              <span class="lbl">Mip Levels:</span><span class="val">1</span>
+              <span class="lbl">Sample Count:</span><span class="val">1</span>
+              <span class="lbl">Usage:</span><span class="val" style="color:var(--accent);">RENDER_ATTACHMENT</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     MOCK 3: Three-Column Layout
+     ════════════════════════════════════════════════════════════════ -->
+<div class="mock-section">
+  <div class="mock-label">
+    <span class="mock-num">Mock 3</span>
+    <h2>Three-Column Layout</h2>
+    <p>Commands (left), Resources (center), Detail (right). Both vertical dividers are draggable. Clicking either a command or resource shows its detail on the right.</p>
+  </div>
+  <div class="mock-frame">
+    <div class="header">
+      <div class="header-left">
+        <h1>SpectorGPU</h1>
+        <span class="gpu-name">NVIDIA GeForce RTX 4090</span>
+      </div>
+      <div class="header-stats">
+        <div class="stat"><span class="stat-val">847</span><span class="stat-lbl">Commands</span></div>
+        <div class="stat"><span class="stat-val">128</span><span class="stat-lbl">Draw Calls</span></div>
+        <div class="stat"><span class="stat-val">6</span><span class="stat-lbl">Render Passes</span></div>
+        <div class="stat"><span class="stat-val">42</span><span class="stat-lbl">Textures</span></div>
+        <div class="stat"><span class="stat-val">2.4ms</span><span class="stat-lbl">Duration</span></div>
+      </div>
+    </div>
+    <div class="content">
+      <!-- Column 1: Commands -->
+      <div style="width:280px; display:flex; flex-direction:column; background:var(--bg-secondary);">
+        <div class="panel-header">Commands <span class="count">847</span></div>
+        <div style="overflow-y:auto; flex:1;">
+          <div class="tree-node" style="padding-left:8px"><span class="toggle">▼</span><span class="badge badge-sub">SUB</span><span class="node-name">queue.submit</span><span class="child-count">(3)</span></div>
+          <div class="tree-node selected" style="padding-left:28px"><span class="toggle">▼</span><span class="badge badge-rp">RP</span><span class="node-name">beginRenderPass</span><span class="child-count">(45)</span></div>
+          <div class="tree-node" style="padding-left:48px"><span class="toggle">&nbsp;</span><span class="badge badge-st">PIP</span><span class="node-name">setPipeline</span></div>
+          <div class="tree-node" style="padding-left:48px"><span class="toggle">&nbsp;</span><span class="badge badge-st">BND</span><span class="node-name">setBindGroup</span></div>
+          <div class="tree-node" style="padding-left:48px"><span class="toggle">&nbsp;</span><span class="badge badge-drw">DRW</span><span class="node-name">drawIndexed</span></div>
+          <div class="tree-node" style="padding-left:48px"><span class="toggle">&nbsp;</span><span class="badge badge-drw">DRW</span><span class="node-name">draw</span></div>
+          <div class="tree-node" style="padding-left:48px"><span class="toggle">&nbsp;</span><span class="badge badge-cmd">END</span><span class="node-name">end</span></div>
+          <div class="tree-node" style="padding-left:28px"><span class="toggle">▶</span><span class="badge badge-rp">RP</span><span class="node-name">beginRenderPass</span><span class="child-count">(32)</span></div>
+          <div class="tree-node" style="padding-left:28px"><span class="toggle">▶</span><span class="badge badge-cp">CP</span><span class="node-name">beginComputePass</span><span class="child-count">(12)</span></div>
+        </div>
+      </div>
+      <div class="divider-v"></div>
+      <!-- Column 2: Resources -->
+      <div style="width:200px; display:flex; flex-direction:column;">
+        <div class="panel-header">Resources</div>
+        <div style="overflow-y:auto; flex:1;">
+          <div class="res-group-header"><span class="g-toggle">▼</span> Textures <span class="g-count">42</span></div>
+          <div class="res-item"><span class="tex-swatch" style="background:#2a3a5a"></span>tex_0</div>
+          <div class="res-item"><span class="tex-swatch" style="background:#4a3060"></span>tex_1</div>
+          <div class="res-item"><span class="tex-swatch" style="background:#2a4a2a"></span>tex_2</div>
+          <div class="res-group-header"><span class="g-toggle">▼</span> Buffers <span class="g-count">18</span></div>
+          <div class="res-item">buf_0 <span class="res-label">65KB</span></div>
+          <div class="res-item">buf_1 <span class="res-label">128KB</span></div>
+          <div class="res-group-header"><span class="g-toggle">▶</span> Shaders <span class="g-count">7</span></div>
+          <div class="res-group-header"><span class="g-toggle">▶</span> Pipelines <span class="g-count">9</span></div>
+        </div>
+      </div>
+      <div class="divider-v"></div>
+      <!-- Column 3: Detail -->
+      <div class="panel" style="flex:1;">
+        <div class="tab-bar">
+          <button class="active">Details</button>
+          <button>Shaders</button>
+          <button>Pipeline</button>
+        </div>
+        <div style="padding:14px; overflow-y:auto; flex:1;">
+          <h3 style="font-size:14px; color:var(--accent); margin-bottom:14px; font-family:'Cascadia Code','Consolas',monospace;">encoder.beginRenderPass</h3>
+          <div class="detail-section">
+            <h4>Color Attachments</h4>
+            <div class="detail-grid">
+              <span class="lbl">View:</span><span class="val" style="color:var(--accent); cursor:pointer;">tv_0</span>
+              <span class="lbl">Load Op:</span><span class="val">clear</span>
+              <span class="lbl">Store Op:</span><span class="val">store</span>
+              <span class="lbl">Clear Value:</span><span class="val">{r:0.1, g:0.1, b:0.15, a:1}</span>
+            </div>
+          </div>
+          <div class="detail-section">
+            <h4>Depth/Stencil</h4>
+            <div class="detail-grid">
+              <span class="lbl">View:</span><span class="val" style="color:var(--accent); cursor:pointer;">tv_1</span>
+              <span class="lbl">Depth Load:</span><span class="val">clear</span>
+              <span class="lbl">Depth Store:</span><span class="val">store</span>
+              <span class="lbl">Clear Depth:</span><span class="val">1.0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     MOCK 4: Unified Tree with Integrated Resources
+     ════════════════════════════════════════════════════════════════ -->
+<div class="mock-section">
+  <div class="mock-label">
+    <span class="mock-num">Mock 4</span>
+    <h2>Unified Tree with Integrated Resources</h2>
+    <p>Single left panel with Commands at the top and Resource categories below in the same tree. Selecting anything (command or resource) shows context-sensitive detail on the right. No mode switching needed.</p>
+  </div>
+  <div class="mock-frame">
+    <div class="header">
+      <div class="header-left">
+        <h1>SpectorGPU</h1>
+        <span class="gpu-name">NVIDIA GeForce RTX 4090</span>
+      </div>
+      <div class="header-stats">
+        <div class="stat"><span class="stat-val">847</span><span class="stat-lbl">Commands</span></div>
+        <div class="stat"><span class="stat-val">128</span><span class="stat-lbl">Draw Calls</span></div>
+        <div class="stat"><span class="stat-val">6</span><span class="stat-lbl">Render Passes</span></div>
+        <div class="stat"><span class="stat-val">42</span><span class="stat-lbl">Textures</span></div>
+        <div class="stat"><span class="stat-val">2.4ms</span><span class="stat-lbl">Duration</span></div>
+      </div>
+    </div>
+    <div class="content">
+      <!-- Left: unified tree -->
+      <div style="width:320px; display:flex; flex-direction:column; background:var(--bg-secondary);">
+        <div style="overflow-y:auto; flex:1;">
+          <!-- Commands section -->
+          <div class="panel-header" style="background:var(--bg-primary);">📋 Commands <span class="count">847</span></div>
+          <div class="tree-node" style="padding-left:8px"><span class="toggle">▼</span><span class="badge badge-sub">SUB</span><span class="node-name">queue.submit</span><span class="child-count">(3)</span></div>
+          <div class="tree-node" style="padding-left:28px"><span class="toggle">▼</span><span class="badge badge-rp">RP</span><span class="node-name">encoder.beginRenderPass</span><span class="child-count">(45)</span></div>
+          <div class="tree-node" style="padding-left:48px"><span class="toggle">&nbsp;</span><span class="badge badge-st">PIP</span><span class="node-name">renderPass.setPipeline</span></div>
+          <div class="tree-node" style="padding-left:48px"><span class="toggle">&nbsp;</span><span class="badge badge-drw">DRW</span><span class="node-name">renderPass.drawIndexed</span></div>
+          <div class="tree-node" style="padding-left:48px"><span class="toggle">&nbsp;</span><span class="badge badge-cmd">END</span><span class="node-name">renderPass.end</span></div>
+          <div class="tree-node" style="padding-left:28px"><span class="toggle">▶</span><span class="badge badge-cp">CP</span><span class="node-name">encoder.beginComputePass</span><span class="child-count">(12)</span></div>
+
+          <!-- Resources section (same tree, different styling) -->
+          <div class="panel-header" style="background:var(--bg-primary); margin-top:2px;">📦 Resources</div>
+          <div class="res-group-header"><span class="g-toggle">▼</span> Textures <span class="g-count">42</span></div>
+          <div class="res-item"><span class="tex-swatch" style="background:#2a3a5a"></span>tex_0 <span class="res-label">Canvas 1920×1080</span></div>
+          <div class="res-item"><span class="tex-swatch" style="background:#4a3060"></span>tex_1 <span class="res-label">depth24plus 1920×1080</span></div>
+          <div class="res-group-header"><span class="g-toggle">▼</span> Shader Modules <span class="g-count">7</span></div>
+          <div class="res-item selected">shd_0 <span class="res-label">PBR vertex</span></div>
+          <div class="res-item">shd_1 <span class="res-label">PBR fragment</span></div>
+          <div class="res-item">shd_2 <span class="res-label">Shadow map vertex</span></div>
+          <div class="res-group-header"><span class="g-toggle">▶</span> Buffers <span class="g-count">18</span></div>
+          <div class="res-group-header"><span class="g-toggle">▶</span> Render Pipelines <span class="g-count">9</span></div>
+          <div class="res-group-header"><span class="g-toggle">▶</span> Bind Groups <span class="g-count">14</span></div>
+        </div>
+      </div>
+      <div class="divider-v"></div>
+      <!-- Right: context-sensitive detail (shader selected → show code) -->
+      <div class="panel" style="flex:1;">
+        <div class="breadcrumb">
+          Resources <span class="sep">›</span> Shader Modules <span class="sep">›</span> <span class="crumb-active">shd_0 — PBR vertex</span>
+        </div>
+        <div style="padding:14px; overflow-y:auto; flex:1;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+            <h3 style="font-size:14px; color:var(--accent); font-family:'Cascadia Code','Consolas',monospace;">shd_0</h3>
+            <span class="badge" style="background:rgba(76,175,80,.2); color:var(--renderpass); font-size:9px; padding:2px 6px;">VERTEX</span>
+            <span class="badge" style="background:rgba(33,150,243,.2); color:var(--draw); font-size:9px; padding:2px 6px;">FRAGMENT</span>
+            <button style="margin-left:auto; padding:3px 10px; background:var(--bg-tertiary); border:1px solid var(--border); border-radius:var(--radius); color:var(--text-secondary); cursor:pointer; font-size:11px;">Copy</button>
+          </div>
+          <div class="code-block"><span class="cm">// PBR vertex shader</span>
+<span class="kw">struct</span> <span class="ty">VertexInput</span> {
+  <span class="fn">@location</span>(<span class="num">0</span>) position: <span class="ty">vec3f</span>,
+  <span class="fn">@location</span>(<span class="num">1</span>) normal: <span class="ty">vec3f</span>,
+  <span class="fn">@location</span>(<span class="num">2</span>) uv: <span class="ty">vec2f</span>,
+};
+
+<span class="kw">struct</span> <span class="ty">VertexOutput</span> {
+  <span class="fn">@builtin</span>(position) pos: <span class="ty">vec4f</span>,
+  <span class="fn">@location</span>(<span class="num">0</span>) worldPos: <span class="ty">vec3f</span>,
+  <span class="fn">@location</span>(<span class="num">1</span>) normal: <span class="ty">vec3f</span>,
+  <span class="fn">@location</span>(<span class="num">2</span>) uv: <span class="ty">vec2f</span>,
+};
+
+<span class="fn">@vertex</span>
+<span class="kw">fn</span> <span class="fn">main</span>(input: <span class="ty">VertexInput</span>) -> <span class="ty">VertexOutput</span> {
+  <span class="kw">var</span> output: <span class="ty">VertexOutput</span>;
+  output.pos = uniforms.mvp * <span class="ty">vec4f</span>(input.position, <span class="num">1.0</span>);
+  output.worldPos = (uniforms.model * <span class="ty">vec4f</span>(input.position, <span class="num">1.0</span>)).xyz;
+  output.normal = (uniforms.normalMatrix * <span class="ty">vec4f</span>(input.normal, <span class="num">0.0</span>)).xyz;
+  output.uv = input.uv;
+  <span class="kw">return</span> output;
+}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
