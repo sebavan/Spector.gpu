@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { highlightWGSL } from '../../src/extension/resultView/components/wgslHighlighter';
 import { ShaderEditor } from '../../src/extension/resultView/components/ShaderEditor';

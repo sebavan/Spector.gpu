@@ -29,7 +29,6 @@ import type { IAdapterInfo, IBufferInfo, ICapture, ICaptureStats, CommandType as
 import { CommandType } from '@shared/types';
 import { CommandTreeBuilder } from '@core/capture';
 import { RecorderManager } from '@core/recorders';
-import { globalOriginStore } from '@core/proxy/originStore';
 import {
     GpuSpy,
     DeviceSpy,
@@ -1251,8 +1250,6 @@ export class SpectorGPU {
 
         for (const task of tasks) {
             try {
-                let dataUrl: string | null = null;
-
                 if (task.layers === 1) {
                     // Single layer — standard readback
                     const data = new Uint8Array(task.buffers[0].getMappedRange());

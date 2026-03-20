@@ -123,9 +123,9 @@ describe('CommandTreeBuilder', () => {
         tree.pushScope(CommandType.Submit, 'submit');
         tree.pushScope(CommandType.RenderPass, 'beginRenderPass');
 
-        const setPipe1 = tree.addCommand(CommandType.SetPipeline, 'setPipeline', { pipelineId: 'pipe_a' });
-        const setBg = tree.addCommand(CommandType.SetBindGroup, 'setBindGroup', { index: 0 });
-        const setVb = tree.addCommand(CommandType.SetVertexBuffer, 'setVertexBuffer', { slot: 0 });
+        tree.addCommand(CommandType.SetPipeline, 'setPipeline', { pipelineId: 'pipe_a' });
+        tree.addCommand(CommandType.SetBindGroup, 'setBindGroup', { index: 0 });
+        tree.addCommand(CommandType.SetVertexBuffer, 'setVertexBuffer', { slot: 0 });
         const draw1 = tree.addCommand(CommandType.Draw, 'draw', { vertexCount: 36 });
         draw1.setStateSnapshot({
             pipelineId: 'pipe_a',
@@ -133,7 +133,7 @@ describe('CommandTreeBuilder', () => {
             vertexBuffers: ['vb_0'],
         });
 
-        const setPipe2 = tree.addCommand(CommandType.SetPipeline, 'setPipeline', { pipelineId: 'pipe_b' });
+        tree.addCommand(CommandType.SetPipeline, 'setPipeline', { pipelineId: 'pipe_b' });
         const draw2 = tree.addCommand(CommandType.Draw, 'drawIndexed', { indexCount: 12 });
         draw2.setStateSnapshot({
             pipelineId: 'pipe_b',

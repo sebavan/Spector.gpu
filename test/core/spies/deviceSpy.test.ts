@@ -1,7 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DeviceSpy } from '@core/spies/deviceSpy';
 import { RecorderManager } from '@core/recorders';
-import { globalOriginStore } from '@core/proxy/originStore';
 import {
     createMockWebGPU,
     resetMockIds,
@@ -93,7 +92,6 @@ describe('DeviceSpy', () => {
         expect(texId!.startsWith('tex_')).toBe(true);
 
         // createView should be patched on the texture instance
-        const originalCreateView = Object.getPrototypeOf(texture).constructor.prototype.createView;
         // The instance method should differ from the prototype
         // (instance method is patched)
         const view = texture.createView({ label: 'test-view' });

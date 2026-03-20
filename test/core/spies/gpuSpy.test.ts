@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GpuSpy } from '@core/spies/gpuSpy';
-import { createMockWebGPU, resetMockIds, type MockGPU } from '../../mocks';
+import { createMockWebGPU, resetMockIds } from '../../mocks';
 import type { IAdapterInfo } from '@shared/types';
 
 describe('GpuSpy', () => {

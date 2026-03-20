@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { patchMethod, patchMethods, type PatchOptions } from '@core/proxy/methodPatcher';
+import { patchMethod, patchMethods } from '@core/proxy/methodPatcher';
 
 // ---------- helpers ----------
 

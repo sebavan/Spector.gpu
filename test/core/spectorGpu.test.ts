@@ -1,7 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SpectorGPU } from '../../src/core/spectorGpu';
 import { globalIdGenerator } from '../../src/shared/utils';
-import { globalOriginStore } from '../../src/core/proxy/originStore';
 import type { ICapture, IAdapterInfo } from '../../src/shared/types';
 import {
     createMockWebGPU,

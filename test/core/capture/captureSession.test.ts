@@ -13,7 +13,6 @@ import {
     MockGPUQueue,
     MockGPUCommandEncoder,
     MockGPURenderPassEncoder,
-    MockGPUComputePassEncoder,
     MockGPURenderPipeline,
     MockGPUBindGroup,
     MockGPUBuffer,
