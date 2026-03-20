@@ -325,6 +325,68 @@ function pixelsToDataUrl(
     return canvas.toDataURL('image/png');
 }
 
+/**
+ * Composite 6 cube faces into a 3×2 grid thumbnail.
+ * Layout: [+X][-X][+Y] / [-Y][+Z][-Z]
+ */
+function cubeFacesToDataUrl(
+    faceData: Uint8Array[],
+    faceWidth: number,
+    faceHeight: number,
+    bytesPerRow: number,
+    format: string,
+    maxFaceSize: number,
+): string | null {
+    if (typeof document === 'undefined' || faceData.length < 6) return null;
+
+    const bpp = bytesPerPixel(format);
+    const scale = Math.min(1, maxFaceSize / Math.max(faceWidth, faceHeight));
+    const thumbFace = Math.max(1, Math.round(Math.max(faceWidth, faceHeight) * scale));
+
+    // Full-res face canvas (reused for each face)
+    const faceCanvas = document.createElement('canvas');
+    faceCanvas.width = faceWidth;
+    faceCanvas.height = faceHeight;
+    const faceCtx = faceCanvas.getContext('2d');
+    if (!faceCtx) return null;
+
+    // Output: 3 columns × 2 rows
+    const cols = 3;
+    const rows = 2;
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = thumbFace * cols;
+    outCanvas.height = thumbFace * rows;
+    const outCtx = outCanvas.getContext('2d');
+    if (!outCtx) return null;
+
+    // Dark background for gaps
+    outCtx.fillStyle = '#0a0a0f';
+    outCtx.fillRect(0, 0, outCanvas.width, outCanvas.height);
+
+    for (let face = 0; face < 6; face++) {
+        const raw = faceData[face];
+        const rgba = new Uint8Array(faceWidth * faceHeight * 4);
+
+        for (let y = 0; y < faceHeight; y++) {
+            const srcRow = y * bytesPerRow;
+            const dstRow = y * faceWidth * 4;
+            for (let x = 0; x < faceWidth; x++) {
+                convertPixel(raw, srcRow + x * bpp, rgba, dstRow + x * 4, format);
+            }
+        }
+
+        const imageData = faceCtx.createImageData(faceWidth, faceHeight);
+        imageData.data.set(rgba);
+        faceCtx.putImageData(imageData, 0, 0);
+
+        const col = face % cols;
+        const row = (face / cols) | 0;
+        outCtx.drawImage(faceCanvas, col * thumbFace, row * thumbFace, thumbFace, thumbFace);
+    }
+
+    return outCanvas.toDataURL('image/png');
+}
+
 export class SpectorGPU {
     // ── Public observables ───────────────────────────────────────────
     public readonly onWebGPUDetected = new Observable<IAdapterInfo>();
@@ -1139,14 +1201,17 @@ export class SpectorGPU {
 
         // Read back each texture individually with its own error scope
         // so one failed copy doesn't abort the rest.
-        const tasks: Array<{
+        // For cube textures (depthOrArrayLayers === 6), read all 6 faces.
+        interface ReadbackTask {
             id: string;
             info: ITextureInfo;
-            buffer: GPUBuffer;
+            buffers: GPUBuffer[];  // one per layer/face
             bytesPerRow: number;
             width: number;
             height: number;
-        }> = [];
+            layers: number;
+        }
+        const tasks: ReadbackTask[] = [];
 
         for (const { id, info, gpuTexture } of readable) {
             try {
@@ -1155,35 +1220,42 @@ export class SpectorGPU {
 
                 const width = info.size.width;
                 const height = info.size.height;
+                const layers = info.size.depthOrArrayLayers;
+                // Read all faces for cubes (6 layers), otherwise just layer 0
+                const layerCount = layers === 6 ? 6 : 1;
                 const bytesPerRow = Math.ceil((width * bpp) / 256) * 256;
-                const bufferSize = bytesPerRow * height;
+                const perLayerSize = bytesPerRow * height;
 
-                if (bufferSize === 0 || bufferSize > 64 * 1024 * 1024) continue;
+                if (perLayerSize === 0 || perLayerSize > 64 * 1024 * 1024) continue;
 
-                // Per-texture error scope — catches destroyed/invalid textures
                 device.pushErrorScope('validation');
 
-                const buffer = device.createBuffer({
-                    size: bufferSize,
-                    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-                });
-
+                const buffers: GPUBuffer[] = [];
                 const encoder = device.createCommandEncoder();
-                encoder.copyTextureToBuffer(
-                    { texture: gpuTexture, mipLevel: 0 },
-                    { buffer, bytesPerRow, rowsPerImage: height },
-                    { width, height, depthOrArrayLayers: 1 },
-                );
+
+                for (let layer = 0; layer < layerCount; layer++) {
+                    const buffer = device.createBuffer({
+                        size: perLayerSize,
+                        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+                    });
+                    encoder.copyTextureToBuffer(
+                        { texture: gpuTexture, mipLevel: 0, origin: { x: 0, y: 0, z: layer } },
+                        { buffer, bytesPerRow, rowsPerImage: height },
+                        { width, height, depthOrArrayLayers: 1 },
+                    );
+                    buffers.push(buffer);
+                }
+
                 device.queue.submit([encoder.finish()]);
 
                 const err = await device.popErrorScope();
                 if (err) {
                     Logger.warn(`Readback copy failed for ${id}: ${(err as GPUValidationError).message}`);
-                    buffer.destroy();
+                    for (const b of buffers) b.destroy();
                     continue;
                 }
 
-                tasks.push({ id, info, buffer, bytesPerRow, width, height });
+                tasks.push({ id, info, buffers, bytesPerRow, width, height, layers: layerCount });
             } catch (e) {
                 Logger.warn(`Readback setup failed for ${id}:`, e);
             }
@@ -1191,40 +1263,57 @@ export class SpectorGPU {
 
         if (tasks.length === 0) return;
 
-        // Map all staging buffers in parallel, with a timeout
+        // Map ALL staging buffers in parallel, with a timeout
+        const allBuffers = tasks.flatMap(t => t.buffers);
         try {
             await Promise.race([
-                Promise.all(tasks.map(t => t.buffer.mapAsync(GPUMapMode.READ))),
+                Promise.all(allBuffers.map(b => b.mapAsync(GPUMapMode.READ))),
                 new Promise<never>((_, reject) =>
                     setTimeout(() => reject(new Error('Readback timeout')), SpectorGPU.READBACK_TIMEOUT_MS)
                 ),
             ]);
         } catch (e) {
             Logger.warn('Texture readback map failed:', e);
-            for (const t of tasks) {
-                try { t.buffer.destroy(); } catch { /* ignore */ }
+            for (const b of allBuffers) {
+                try { b.destroy(); } catch { /* ignore */ }
             }
             return;
         }
 
         // Read pixels and generate thumbnails (with total size budget)
         let totalPreviewBytes = 0;
-        const MAX_PREVIEW_BYTES = 4 * 1024 * 1024; // 4 MB total budget
+        const MAX_PREVIEW_BYTES = 4 * 1024 * 1024;
 
         for (const task of tasks) {
             try {
-                const data = new Uint8Array(task.buffer.getMappedRange());
-                const dataUrl = pixelsToDataUrl(
-                    data, task.width, task.height,
-                    task.bytesPerRow, task.info.format,
-                    SpectorGPU.READBACK_THUMB_SIZE,
-                );
+                let dataUrl: string | null = null;
+
+                if (task.layers === 1) {
+                    // Single layer — standard readback
+                    const data = new Uint8Array(task.buffers[0].getMappedRange());
+                    dataUrl = pixelsToDataUrl(
+                        data, task.width, task.height,
+                        task.bytesPerRow, task.info.format,
+                        SpectorGPU.READBACK_THUMB_SIZE,
+                    );
+                } else {
+                    // Multi-layer (cubemap) — composite all faces into a grid
+                    const faceDataArrays: Uint8Array[] = [];
+                    for (const buf of task.buffers) {
+                        faceDataArrays.push(new Uint8Array(buf.getMappedRange()));
+                    }
+                    dataUrl = cubeFacesToDataUrl(
+                        faceDataArrays, task.width, task.height,
+                        task.bytesPerRow, task.info.format,
+                        SpectorGPU.READBACK_THUMB_SIZE,
+                    );
+                }
+
                 if (dataUrl) {
                     totalPreviewBytes += dataUrl.length;
                     if (totalPreviewBytes > MAX_PREVIEW_BYTES) {
                         Logger.warn('Preview size budget exceeded, skipping remaining textures');
-                        task.buffer.unmap();
-                        task.buffer.destroy();
+                        for (const b of task.buffers) { try { b.unmap(); } catch {} b.destroy(); }
                         break;
                     }
                     this._recorderManager.setTexturePreview(task.id, dataUrl);
@@ -1232,8 +1321,10 @@ export class SpectorGPU {
             } catch (e) {
                 Logger.warn(`Readback read failed for ${task.id}:`, e);
             } finally {
-                try { task.buffer.unmap(); } catch { /* may already be unmapped */ }
-                task.buffer.destroy();
+                for (const buf of task.buffers) {
+                    try { buf.unmap(); } catch { /* may already be unmapped */ }
+                    buf.destroy();
+                }
             }
         }
 
