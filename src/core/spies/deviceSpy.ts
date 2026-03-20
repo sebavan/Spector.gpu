@@ -125,7 +125,9 @@ export class DeviceSpy {
                     const usage = desc.usage as number;
                     const isMappable = !!(usage & (0x0001 | 0x0002)); // MAP_READ | MAP_WRITE
                     if (!isMappable) {
-                        return [{ ...desc, usage: usage | 0x04 }]; // COPY_SRC = 0x04 for buffers
+                        const cloned = structuredClone(desc);
+                        cloned.usage = usage | 0x04; // COPY_SRC = 0x04 for buffers
+                        return [cloned];
                     }
                 }
             },
@@ -144,7 +146,9 @@ export class DeviceSpy {
                 // breaks engines that inspect usage after createTexture.
                 const desc = args[0] as Record<string, unknown> | undefined;
                 if (desc && typeof desc.usage === 'number') {
-                    return [{ ...desc, usage: (desc.usage as number) | 0x01 }];
+                    const cloned = structuredClone(desc);
+                    cloned.usage = (desc.usage as number) | 0x01;
+                    return [cloned];
                 }
             },
             after(methodName, args, result) {
