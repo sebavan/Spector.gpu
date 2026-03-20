@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { ICapture, ICommandNode } from '@shared/types';
 import { readCapture } from '@shared/utils/captureStorage';
 import { CommandDetail } from './CommandDetail';
@@ -31,6 +31,28 @@ const CATEGORY_LABELS: Record<ResourceCategory, string> = {
     bindGroupLayouts: 'Bind Group Layouts',
 };
 
+// ── History state for back/forward navigation ─────────────────────────
+
+interface NavState {
+    mode: SidebarMode;
+    commandId: string | null;
+    tab: CommandTab;
+    resourceCategory: ResourceCategory | null;
+    resourceId: string | null;
+}
+
+/** DFS lookup of a command node by id. */
+function findNodeById(nodes: readonly ICommandNode[], id: string): ICommandNode | null {
+    for (let i = 0; i < nodes.length; i++) {
+        if (nodes[i].id === id) return nodes[i];
+        if (nodes[i].children.length > 0) {
+            const found = findNodeById(nodes[i].children, id);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+
 export function ResultApp() {
     const [capture, setCapture] = useState<ICapture | null>(null);
     const [selectedNode, setSelectedNode] = useState<ICommandNode | null>(null);
@@ -44,11 +66,49 @@ export function ResultApp() {
     const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
     const [leftPanelWidth, setLeftPanelWidth] = useState(DEFAULT_LEFT_WIDTH);
 
+    // Guard: don't push history when restoring from popstate
+    const restoringRef = useRef(false);
+
+    // ── Push browser history on navigation changes ────────────────────
+    const pushHistory = useCallback((state: NavState) => {
+        if (restoringRef.current) return;
+        try { history.pushState(state, ''); } catch { /* extension sandbox */ }
+    }, []);
+
+    // ── Restore state from popstate (back/forward) ────────────────────
+    useEffect(() => {
+        const onPopState = (e: PopStateEvent) => {
+            const s = e.state as NavState | null;
+            if (!s || !capture) return;
+            restoringRef.current = true;
+            setSidebarMode(s.mode);
+            setActiveTab(s.tab);
+            setSelectedResourceCategory(s.resourceCategory);
+            setSelectedResourceId(s.resourceId);
+            if (s.commandId) {
+                const node = findNodeById(capture.commands, s.commandId);
+                setSelectedNode(node);
+            } else {
+                setSelectedNode(null);
+            }
+            restoringRef.current = false;
+        };
+        window.addEventListener('popstate', onPopState);
+        return () => window.removeEventListener('popstate', onPopState);
+    }, [capture]);
+
     const navigateToResource = useCallback((target: NavigationTarget) => {
         setSidebarMode('resources');
         setSelectedResourceCategory(target.category);
         setSelectedResourceId(target.id);
-    }, []);
+        pushHistory({
+            mode: 'resources',
+            commandId: null,
+            tab: 'detail',
+            resourceCategory: target.category,
+            resourceId: target.id,
+        });
+    }, [pushHistory]);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -65,10 +125,19 @@ export function ResultApp() {
                 if (data) {
                     const cap = data as ICapture;
                     setCapture(cap);
-                    // Auto-select the first command if present.
-                    if (cap.commands.length > 0) {
-                        setSelectedNode(cap.commands[0]);
-                    }
+                    const firstNode = cap.commands.length > 0 ? cap.commands[0] : null;
+                    setSelectedNode(firstNode);
+                    // Replace (not push) initial state so the first back
+                    // doesn't go to a blank page.
+                    try {
+                        history.replaceState({
+                            mode: 'commands',
+                            commandId: firstNode?.id ?? null,
+                            tab: 'detail',
+                            resourceCategory: null,
+                            resourceId: null,
+                        } as NavState, '');
+                    } catch { /* extension sandbox */ }
                 } else {
                     setError('Capture not found');
                 }
@@ -81,12 +150,48 @@ export function ResultApp() {
 
     const handleSelectCommand = useCallback((node: ICommandNode) => {
         setSelectedNode(node);
-    }, []);
+        pushHistory({
+            mode: sidebarMode,
+            commandId: node.id,
+            tab: activeTab,
+            resourceCategory: selectedResourceCategory,
+            resourceId: selectedResourceId,
+        });
+    }, [pushHistory, sidebarMode, activeTab, selectedResourceCategory, selectedResourceId]);
 
     const handleSelectResource = useCallback((category: ResourceCategory, id: string) => {
         setSelectedResourceCategory(category);
         setSelectedResourceId(id);
-    }, []);
+        pushHistory({
+            mode: 'resources',
+            commandId: selectedNode?.id ?? null,
+            tab: activeTab,
+            resourceCategory: category,
+            resourceId: id,
+        });
+    }, [pushHistory, selectedNode, activeTab]);
+
+    const handleModeChange = useCallback((mode: SidebarMode) => {
+        setSidebarMode(mode);
+        pushHistory({
+            mode,
+            commandId: selectedNode?.id ?? null,
+            tab: activeTab,
+            resourceCategory: selectedResourceCategory,
+            resourceId: selectedResourceId,
+        });
+    }, [pushHistory, selectedNode, activeTab, selectedResourceCategory, selectedResourceId]);
+
+    const handleTabChange = useCallback((tab: CommandTab) => {
+        setActiveTab(tab);
+        pushHistory({
+            mode: sidebarMode,
+            commandId: selectedNode?.id ?? null,
+            tab,
+            resourceCategory: selectedResourceCategory,
+            resourceId: selectedResourceId,
+        });
+    }, [pushHistory, sidebarMode, selectedNode, selectedResourceCategory, selectedResourceId]);
 
     const handleDividerDrag = useCallback((deltaX: number) => {
         setLeftPanelWidth(prev => {
@@ -128,7 +233,7 @@ export function ResultApp() {
                         <SidebarPanel
                             capture={capture}
                             mode={sidebarMode}
-                            onModeChange={setSidebarMode}
+                            onModeChange={handleModeChange}
                             selectedCommandId={selectedNode?.id ?? null}
                             onSelectCommand={handleSelectCommand}
                             selectedResourceCategory={selectedResourceCategory}
@@ -144,9 +249,9 @@ export function ResultApp() {
                         {sidebarMode === 'commands' ? (
                             <>
                                 <div className="tab-bar">
-                                    <TabButton label="Details"  tab="detail"   active={activeTab} onClick={setActiveTab} />
-                                    <TabButton label="Shaders"  tab="shader"   active={activeTab} onClick={setActiveTab} />
-                                    <TabButton label="Pipeline" tab="pipeline" active={activeTab} onClick={setActiveTab} />
+                                    <TabButton label="Details"  tab="detail"   active={activeTab} onClick={handleTabChange} />
+                                    <TabButton label="Shaders"  tab="shader"   active={activeTab} onClick={handleTabChange} />
+                                    <TabButton label="Pipeline" tab="pipeline" active={activeTab} onClick={handleTabChange} />
                                 </div>
                                 <div className="tab-content">
                                     {activeTab === 'detail'   && <CommandDetail node={selectedNode} capture={capture} />}
