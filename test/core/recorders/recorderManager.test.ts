@@ -595,3 +595,169 @@ describe('Reset', () => {
         expect(snap.shaderModules.size).toBe(0);
     });
 });
+
+// ─── Cubemap detection via texture views (PR #10) ────────────────────
+
+describe('hasTextureCubeView', () => {
+    it('returns true when texture has a cube view', () => {
+        const tex = {};
+        const view = {};
+        const texId = mgr.recordTextureCreation(tex, {
+            size: { width: 256, height: 256, depthOrArrayLayers: 6 },
+            format: 'rgba8unorm',
+            usage: 0x04,
+            dimension: '2d',
+        });
+        mgr.recordTextureViewCreation(view, tex, { dimension: 'cube' });
+        expect(mgr.hasTextureCubeView(texId)).toBe(true);
+    });
+
+    it('returns false when texture has only 2d views', () => {
+        const tex = {};
+        const view = {};
+        const texId = mgr.recordTextureCreation(tex, {
+            size: { width: 256, height: 256, depthOrArrayLayers: 6 },
+            format: 'rgba8unorm',
+            usage: 0x04,
+            dimension: '2d',
+        });
+        mgr.recordTextureViewCreation(view, tex, { dimension: '2d' });
+        expect(mgr.hasTextureCubeView(texId)).toBe(false);
+    });
+
+    it('returns true for cube-array dimension', () => {
+        const tex = {};
+        const view = {};
+        const texId = mgr.recordTextureCreation(tex, {
+            size: { width: 256, height: 256, depthOrArrayLayers: 12 },
+            format: 'rgba8unorm',
+            usage: 0x04,
+            dimension: '2d',
+        });
+        mgr.recordTextureViewCreation(view, tex, { dimension: 'cube-array' });
+        expect(mgr.hasTextureCubeView(texId)).toBe(true);
+    });
+
+    it('returns false when no views exist', () => {
+        const tex = {};
+        const texId = mgr.recordTextureCreation(tex, {
+            size: { width: 256, height: 256, depthOrArrayLayers: 6 },
+            format: 'rgba8unorm',
+            usage: 0x04,
+            dimension: '2d',
+        });
+        expect(mgr.hasTextureCubeView(texId)).toBe(false);
+    });
+
+    it('returns false for non-existent texture ID', () => {
+        expect(mgr.hasTextureCubeView('tex_999')).toBe(false);
+    });
+});
+
+// ─── Canvas texture deduplication (PR #13) ───────────────────────────
+
+describe('Canvas texture deduplication', () => {
+    it('only keeps the latest canvas texture', () => {
+        const tex1 = {};
+        const tex2 = {};
+        const tex3 = {};
+
+        mgr.recordCanvasTexture(tex1, 'bgra8unorm', 1920, 1080);
+        mgr.recordCanvasTexture(tex2, 'bgra8unorm', 1920, 1080);
+        const id3 = mgr.recordCanvasTexture(tex3, 'bgra8unorm', 1920, 1080);
+
+        const snapshot = mgr.snapshot();
+        // Only the latest canvas texture should be in the snapshot
+        let canvasCount = 0;
+        for (const [, tex] of snapshot.textures) {
+            if (tex.isCanvasTexture) canvasCount++;
+        }
+        expect(canvasCount).toBe(1);
+        expect(snapshot.textures.get(id3)?.isCanvasTexture).toBe(true);
+    });
+
+    it('canvas texture is idempotent for same object', () => {
+        const tex = {};
+        const id1 = mgr.recordCanvasTexture(tex, 'bgra8unorm', 1920, 1080);
+        const id2 = mgr.recordCanvasTexture(tex, 'bgra8unorm', 1920, 1080);
+        expect(id1).toBe(id2);
+    });
+
+    it('canvas texture is recorded with correct properties', () => {
+        const tex = {};
+        const id = mgr.recordCanvasTexture(tex, 'bgra8unorm', 1920, 1080);
+
+        const snapshot = mgr.snapshot();
+        const info = snapshot.textures.get(id)!;
+        expect(info).toBeDefined();
+        expect(info.format).toBe('bgra8unorm');
+        expect(info.size.width).toBe(1920);
+        expect(info.size.height).toBe(1080);
+        expect(info.isCanvasTexture).toBe(true);
+        expect(info.label).toBe('Canvas Texture');
+    });
+});
+
+// ─── Snapshot filters destroyed resources (PR #14) ───────────────────
+
+describe('Snapshot filtering', () => {
+    it('filters out destroyed textures', () => {
+        const tex = {};
+        const id = mgr.recordTextureCreation(tex, {
+            size: { width: 256, height: 256 },
+            format: 'rgba8unorm',
+            usage: 0x04,
+            dimension: '2d',
+        });
+        mgr.recordTextureDestroy(tex);
+
+        const snapshot = mgr.snapshot();
+        expect(snapshot.textures.has(id)).toBe(false);
+    });
+
+    it('isTextureDestroyed returns true after destroy', () => {
+        const tex = {};
+        const id = mgr.recordTextureCreation(tex, {
+            size: { width: 256, height: 256 },
+            format: 'rgba8unorm',
+            usage: 0x04,
+        });
+        expect(mgr.isTextureDestroyed(id)).toBe(false);
+        mgr.recordTextureDestroy(tex);
+        expect(mgr.isTextureDestroyed(id)).toBe(true);
+    });
+
+    it('filters out destroyed buffers', () => {
+        const buf = {};
+        const id = mgr.recordBufferCreation(buf, { size: 256, usage: 1 });
+        mgr.recordBufferDestroy(buf);
+
+        const snapshot = mgr.snapshot();
+        expect(snapshot.buffers.has(id)).toBe(false);
+    });
+
+    it('keeps non-destroyed resources in snapshot', () => {
+        const tex = {};
+        const id = mgr.recordTextureCreation(tex, {
+            size: { width: 256, height: 256 },
+            format: 'rgba8unorm',
+            usage: 0x04,
+            dimension: '2d',
+        });
+
+        const snapshot = mgr.snapshot();
+        expect(snapshot.textures.has(id)).toBe(true);
+    });
+
+    it('keeps non-destroyed buffers alongside destroyed ones', () => {
+        const buf1 = {};
+        const buf2 = {};
+        const id1 = mgr.recordBufferCreation(buf1, { size: 256, usage: 1 });
+        const id2 = mgr.recordBufferCreation(buf2, { size: 128, usage: 1 });
+        mgr.recordBufferDestroy(buf1);
+
+        const snapshot = mgr.snapshot();
+        expect(snapshot.buffers.has(id1)).toBe(false);
+        expect(snapshot.buffers.has(id2)).toBe(true);
+    });
+});

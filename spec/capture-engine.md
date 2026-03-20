@@ -34,10 +34,13 @@ All WebGPU interception uses `patchMethod(target, methodName, options)`:
 
 ### COPY_SRC Injection
 
-**Textures**: `DeviceSpy.createTexture` `before` hook clones descriptor, adds `| 0x01` to usage.
-**Buffers**: `DeviceSpy.createBuffer` `before` hook clones descriptor, adds `| 0x04` to usage. Skips MAP_READ/MAP_WRITE buffers (incompatible).
+**Textures**: `DeviceSpy.createTexture` `before` hook deep-clones descriptor via `structuredClone()`, adds `| 0x01` to usage.
+**Buffers**: `DeviceSpy.createBuffer` `before` hook deep-clones descriptor via `structuredClone()`, adds `| 0x04` to usage. Skips MAP_READ/MAP_WRITE buffers (incompatible).
 
-CRITICAL: Descriptors must be CLONED (`return [{ ...desc, usage: newUsage }]`), never mutated in place.
+CRITICAL rules:
+1. Descriptors must be **deep-cloned** via `structuredClone()` — NOT shallow spread (`{ ...desc }`). Shallow spread shares nested objects (e.g. `size`, `vertex.buffers`) by reference, which breaks engines that mutate descriptors after creation.
+2. Return a new args array from the `before` hook: `return [clonedDesc]`
+3. Buffer COPY_SRC = `0x0004` (GPUBufferUsage), Texture COPY_SRC = `0x01` (GPUTextureUsage) — different flag spaces! Using the wrong bit value will corrupt buffer creation.
 
 ### Late Device Discovery
 
@@ -80,11 +83,11 @@ Tracks all GPU resource lifecycle via WeakMap (object → ID) and Maps (ID → i
 - Sets `_isCapturing = false` (prevents re-entry)
 - `_readbackTextures()`:
   - Filters: skip canvas/destroyed/MSAA/non-2D/depth/compressed, max 16, need COPY_SRC
-  - Cubemaps (depthOrArrayLayers === 6): read all 6 faces separately
+  - Cubemaps: detected by `depthOrArrayLayers === 6` AND confirmed via `hasTextureCubeView()` — checks if any texture view of this texture has dimension `cube` or `cube-array`. This prevents false positives on 6-layer array textures (e.g. cascaded shadow maps).
   - Per-texture: pushErrorScope → createBuffer(MAP_READ|COPY_DST) → copyTextureToBuffer → submit → popErrorScope
   - Parallel mapAsync with 5s timeout
   - Convert pixels: format-specific → RGBA8 → 128px PNG thumbnail
-  - Budget: 4MB total preview data
+  - Budget: 4MB total preview data. Uses `budgetExceeded` flag + `continue` (NOT `break`) so every task's `finally` block runs to clean up staging buffers.
 - `_readbackBuffers()`:
   - Filters: skip destroyed/mapped/oversized, max 32, need COPY_SRC (0x0004)
   - Per-buffer: pushErrorScope → createBuffer(MAP_READ|COPY_DST) → copyBufferToBuffer → submit → popErrorScope

@@ -222,4 +222,26 @@ describe('CommandTreeBuilder', () => {
         expect(pass.parentId).toBe(submit.id);
         expect(draw.parentId).toBe(pass.id);
     });
+
+    // ── Stack underflow after reset (PR #12 bug) ────────────────────
+
+    it('popScope after reset returns undefined', () => {
+        tree.pushScope(CommandType.RenderPass, 'beginRenderPass', {});
+        tree.reset();
+        const result = tree.popScope();
+        expect(result).toBeUndefined();
+        expect(tree.depth).toBe(0);
+    });
+
+    it('popScope multiple times on empty stack does not crash', () => {
+        tree.popScope();
+        tree.popScope();
+        tree.popScope();
+        expect(tree.depth).toBe(0);
+        // Should remain usable
+        tree.pushScope(CommandType.Submit, 'submit');
+        tree.addCommand(CommandType.Draw, 'draw');
+        tree.popScope();
+        expect(tree.freeze()).toHaveLength(1);
+    });
 });

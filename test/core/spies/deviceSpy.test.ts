@@ -375,4 +375,76 @@ describe('DeviceSpy', () => {
             expect(() => deviceSpy.installPrototypeSpy()).not.toThrow();
         });
     });
+
+    // ── Deep-clone descriptors (PR #8 bug) ──────────────────────────
+
+    describe('descriptor deep-cloning', () => {
+        it('createTexture before hook deep-clones descriptor (does not mutate original)', () => {
+            deviceSpy.spyOnDevice(device as unknown as GPUDevice);
+
+            const nestedSize = { width: 256, height: 256, depthOrArrayLayers: 1 };
+            const descriptor = {
+                size: nestedSize,
+                format: 'rgba8unorm',
+                usage: 0x04, // TEXTURE_BINDING
+            };
+
+            device.createTexture(descriptor);
+
+            // Original descriptor's usage must NOT have been mutated
+            // (COPY_SRC = 0x01 would have been OR'd in on the CLONE, not original)
+            expect(descriptor.usage).toBe(0x04);
+            // Nested size object reference must be untouched
+            expect(descriptor.size).toBe(nestedSize);
+        });
+
+        it('createBuffer before hook deep-clones descriptor', () => {
+            deviceSpy.spyOnDevice(device as unknown as GPUDevice);
+
+            const descriptor = { size: 256, usage: 0x0020 }; // VERTEX
+            device.createBuffer(descriptor);
+
+            // Original usage must NOT include COPY_SRC (0x04)
+            expect(descriptor.usage).toBe(0x0020);
+        });
+
+        it('createBuffer before hook skips MAP_READ buffers', () => {
+            deviceSpy.spyOnDevice(device as unknown as GPUDevice);
+
+            const descriptor = { size: 256, usage: 0x0001 }; // MAP_READ
+            device.createBuffer(descriptor);
+
+            // MAP_READ buffers should NOT get COPY_SRC added
+            expect(descriptor.usage).toBe(0x0001);
+        });
+
+        it('createBuffer before hook skips MAP_WRITE buffers', () => {
+            deviceSpy.spyOnDevice(device as unknown as GPUDevice);
+
+            const descriptor = { size: 256, usage: 0x0002 }; // MAP_WRITE
+            device.createBuffer(descriptor);
+
+            // MAP_WRITE buffers should NOT get COPY_SRC added
+            expect(descriptor.usage).toBe(0x0002);
+        });
+
+        it('createTexture cloned descriptor gets COPY_SRC while original does not', () => {
+            deviceSpy.spyOnDevice(device as unknown as GPUDevice);
+
+            const descriptor = {
+                size: { width: 64, height: 64 },
+                format: 'rgba8unorm',
+                usage: 0x10, // RENDER_ATTACHMENT
+            };
+
+            device.createTexture(descriptor);
+
+            // Original must be unchanged
+            expect(descriptor.usage).toBe(0x10);
+            // The texture was created — verify it was recorded
+            // (implying the cloned descriptor with COPY_SRC was used)
+            expect(commandLog).toHaveLength(1);
+            expect(commandLog[0].methodName).toBe('createTexture');
+        });
+    });
 });

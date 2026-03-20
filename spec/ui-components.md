@@ -67,6 +67,7 @@ NavigationContext: `navigateToResource(target)` switches sidebar to resources mo
 - mousemove → compute deltaX, call `onDrag(dx)`
 - mouseup → cleanup overlay, remove listeners
 - All state in `useRef` (zero allocations per mouse event)
+- **Must clean up document listeners on unmount** — if component unmounts mid-drag, `useEffect` cleanup must remove mousemove/mouseup from document
 
 ### BufferMeshViewer (`BufferMeshViewer.tsx`)
 - **Lazy-loaded** via `React.lazy(() => import('./BufferMeshViewer'))` with error fallback
@@ -75,11 +76,16 @@ NavigationContext: `navigateToResource(target)` switches sidebar to resources mo
 - Optionally parses normals (shaderLocation 1)
 - Creates Babylon.js Mesh + VertexData + wireframe StandardMaterial (accent color #4fc3f7)
 - ArcRotateCamera auto-framed on bounding box
+- **Resize handler must guard against disposed engine** — use `disposedRef` to skip `engine.resize()` after cleanup
 
 ### JsonTree (`JsonTree.tsx`)
 - Recursive collapsible JSON viewer
 - Color-coded: keys (#9cdcfe), strings (#ce9178), numbers (#b5cea8), booleans (#569cd6), null (#808080)
 - Resource IDs rendered as clickable ResourceLinks
+- **Circular reference detection** — passes `WeakSet<object>` through `visited` prop. Objects already in the set render as `[Circular]` instead of recursing infinitely.
+
+### CommandTreeBuilder (`src/core/capture/commandTree.ts`)
+- `popScope()` must validate the scope stack is not empty — log a warning on underflow instead of returning silent `undefined`. Helps debug mismatched begin/end spy events.
 
 ### ResourceLink (`ResourceLink.tsx`)
 - Clickable resource ID that navigates to the resource via NavigationContext
