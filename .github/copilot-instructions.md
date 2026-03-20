@@ -1,6 +1,10 @@
 # Communication Style
 - Always use a casual yet professional tone in all interactions.
 
+# Project Context
+- See [`spec/`](../spec/) for full architecture, API types, UI design, capture engine specs, and component documentation.
+- These specs contain enough detail to regenerate the entire codebase from scratch.
+
 # General Coding Principles
 
 ## Philosophy

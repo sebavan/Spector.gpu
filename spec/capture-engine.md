@@ -1,0 +1,138 @@
+# Spector.GPU — Capture Engine Specification
+
+Details the capture pipeline from WebGPU API interception to final ICapture output.
+
+## Spy System
+
+### Method Patching (`src/core/proxy/methodPatcher.ts`)
+
+All WebGPU interception uses `patchMethod(target, methodName, options)`:
+- Replaces the method on the target instance (NOT Proxy — avoids brand-check failures)
+- The original is `.bind(target)` so `this` is always the real GPU object
+- `before(methodName, args)` — can return a new args array to modify arguments
+- `after(methodName, args, result, target)` — fires after the original call
+- `afterResolve(methodName, args, result, target)` — for async methods (Promise resolution)
+- `isAsync: true` — wraps Promise-returning methods
+
+### OriginStore (`src/core/proxy/originStore.ts`)
+
+`globalOriginStore.save(target, methodName)` — saves the current method before patching.
+`globalOriginStore.getOriginal(target, methodName)` — retrieves the saved original.
+`globalOriginStore.has(target, methodName)` — idempotency check.
+
+### Spy Classes
+
+| Spy | Target | Methods Patched |
+|-----|--------|----------------|
+| `GpuSpy` | `GPU.prototype` | `requestAdapter` (wraps return to spy on device creation) |
+| `DeviceSpy` | `GPUDevice` instance | `createBuffer`, `createTexture`, `createSampler`, `createShaderModule`, `createRenderPipeline`, `createRenderPipelineAsync`, `createComputePipeline`, `createComputePipelineAsync`, `createBindGroup`, `createBindGroupLayout`, `createCommandEncoder`, `pushErrorScope`, `popErrorScope`, `destroy` |
+| `QueueSpy` | `GPUQueue` instance | `submit`, `writeBuffer`, `writeTexture` |
+| `EncoderSpy` | `GPUCommandEncoder` instance | `beginRenderPass`, `beginComputePass`, `finish`, + all transfer/debug methods |
+| `RenderPassSpy` | `GPURenderPassEncoder` instance | All render pass methods (draw, setPipeline, setBindGroup, setVertexBuffer, etc.) |
+| `ComputePassSpy` | `GPUComputePassEncoder` instance | All compute pass methods |
+| `CanvasSpy` | `HTMLCanvasElement.prototype` | `getContext` (detects 'webgpu' type, has reentrancy guard) |
+
+### COPY_SRC Injection
+
+**Textures**: `DeviceSpy.createTexture` `before` hook clones descriptor, adds `| 0x01` to usage.
+**Buffers**: `DeviceSpy.createBuffer` `before` hook clones descriptor, adds `| 0x04` to usage. Skips MAP_READ/MAP_WRITE buffers (incompatible).
+
+CRITICAL: Descriptors must be CLONED (`return [{ ...desc, usage: newUsage }]`), never mutated in place.
+
+### Late Device Discovery
+
+Three strategies for finding the GPUDevice when the page creates it before our spy loads:
+1. `GPUAdapter.prototype.requestDevice` — prototype-level patch
+2. `GPUCanvasContext.prototype.configure` — captures device from config.device
+3. `GPUCanvasContext.prototype.getCurrentTexture` — triggers canvas-based device scan
+4. `GPUQueue.prototype.submit` — triggers DOM canvas scan for WebGPU contexts
+
+## RecorderManager
+
+Tracks all GPU resource lifecycle via WeakMap (object → ID) and Maps (ID → info).
+
+### Key methods
+- `trackObject(obj, prefix)` → assigns monotonic ID (`buf_0`, `tex_1`, etc.), also stores `WeakRef` for reverse lookup
+- `recordBufferCreation/recordTextureCreation/etc.` → stores info in typed Maps
+- `recordCanvasTexture(texture, format, w, h)` → only keeps the LATEST canvas texture (removes previous)
+- `recordTextureDestroy/recordBufferDestroy` → adds ID to destroyed Sets
+- `snapshot()` → returns filtered `IResourceMap` (skips destroyed + GC'd resources)
+- `setTexturePreview(id, dataUrl)` / `setTextureFacePreviews(id, urls[])` → readback results
+- `setBufferData(id, base64)` → readback results
+- `getObject(id)` → reverse lookup via `WeakRef.deref()`
+- `getTextures()` / `getBuffers()` → ReadonlyMap for readback iteration
+
+## Capture Lifecycle
+
+### 1. Arm (`captureNextFrame()`)
+- Creates new `CommandTreeBuilder`
+- Sets `_isCapturing = true`
+- Starts timeout guard (`CAPTURE_TIMEOUT_MS = 30s`)
+
+### 2. Record (spy events)
+- `queue.submit` → `CommandType.Submit` node
+- `encoder.beginRenderPass` → pushScope `CommandType.RenderPass`
+- `renderPass.draw*` → addCommand `CommandType.Draw` + state snapshot
+- `renderPass.end` → popScope
+- Same pattern for compute passes
+
+### 3. Finalize (`_finalizeCapture()`, async, triggered from queue.submit microtask)
+- Sets `_isCapturing = false` (prevents re-entry)
+- `_readbackTextures()`:
+  - Filters: skip canvas/destroyed/MSAA/non-2D/depth/compressed, max 16, need COPY_SRC
+  - Cubemaps (depthOrArrayLayers === 6): read all 6 faces separately
+  - Per-texture: pushErrorScope → createBuffer(MAP_READ|COPY_DST) → copyTextureToBuffer → submit → popErrorScope
+  - Parallel mapAsync with 5s timeout
+  - Convert pixels: format-specific → RGBA8 → 128px PNG thumbnail
+  - Budget: 4MB total preview data
+- `_readbackBuffers()`:
+  - Filters: skip destroyed/mapped/oversized, max 32, need COPY_SRC (0x0004)
+  - Per-buffer: pushErrorScope → createBuffer(MAP_READ|COPY_DST) → copyBufferToBuffer → submit → popErrorScope
+  - mapAsync → getMappedRange → base64 encode
+  - Budget: 32MB total, 16MB per buffer
+- `_buildCapture()`:
+  - Attach canvas screenshot to render pass nodes
+  - Freeze command tree
+  - Snapshot resources
+  - Return ICapture
+
+### 4. Emit
+- `onCaptureComplete.trigger(capture)`
+- Content script serializes with `captureToJSON()` (converts Maps to Objects)
+- Sends via window.postMessage → proxy → chrome.runtime → background
+- Background stores in chrome.storage.local (auto-chunked at 4MB)
+
+## Texture Format Conversion
+
+21 formats supported for readback:
+
+| Format | Bytes/pixel | Conversion |
+|--------|-------------|------------|
+| rgba8unorm, rgba8unorm-srgb | 4 | Direct copy |
+| bgra8unorm, bgra8unorm-srgb | 4 | Swap R↔B |
+| rgba8snorm, rgba8sint | 4 | Shift +128, alpha=255 |
+| r8unorm/rg8unorm | 1-2 | Expand to RGB, alpha=255 |
+| rgba16float | 8 | IEEE754 half → clamp [0,1] → ×255 |
+| rgba32float | 16 | Clamp [0,1] → ×255 |
+| r16float/rg16float | 2-4 | Half decode, expand channels |
+| r32float/rg32float | 4-8 | Clamp, expand channels |
+| rgb10a2unorm | 4 | Unpack 10-10-10-2 from u32 |
+
+### float16 decoding
+```
+sign = (h >> 15) & 1
+exp = (h >> 10) & 0x1F
+mant = h & 0x3FF
+if exp === 0: subnormal = (sign ? -1 : 1) * (mant / 1024) * 2^-14
+if exp === 0x1F: Inf or NaN
+else: (sign ? -1 : 1) * 2^(exp-15) * (1 + mant/1024)
+```
+
+## Canvas Screenshot
+
+Captured during `queue.submit` (back buffer still valid):
+1. Use tracked `_webgpuCanvas` (from configure/getContext hooks)
+2. Fallback: largest canvas on page (area heuristic)
+3. Scale to max 256px wide
+4. Validate pixel content (reject blank/expired buffers)
+5. Export as PNG data URL

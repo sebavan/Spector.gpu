@@ -56,14 +56,17 @@ npm run test:watch   # Watch mode tests
 npm run lint         # ESLint
 ```
 
-## Architecture
+## Architecture & Specs
 
-See [`spec/architecture.md`](spec/architecture.md) for a detailed breakdown of:
-- Spy pattern and method patching
-- Capture lifecycle and async readback
-- Resource tracking and snapshot filtering
-- Result viewer component tree
-- Design tokens and theme system
+The [`spec/`](spec/) folder contains complete specifications to regenerate the entire codebase:
+
+| Spec | What |
+|------|------|
+| [`architecture.md`](spec/architecture.md) | System diagram, directory structure, key concepts |
+| [`types.md`](spec/types.md) | Complete TypeScript types, usage flag bitmasks |
+| [`capture-engine.md`](spec/capture-engine.md) | Spy system, readback pipeline, format conversion |
+| [`ui-components.md`](spec/ui-components.md) | React component tree, layout behavior, 3D viewer |
+| [`build-config.md`](spec/build-config.md) | Webpack, manifest, SCSS tokens, message flow |
 
 ## How It Works
 
