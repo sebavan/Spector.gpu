@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { ICapture, ICommandNode, IResourceMap } from '@shared/types';
 import type { ResourceCategory } from './NavigationContext';
 import { CommandTree } from './CommandTree';
@@ -84,14 +84,25 @@ interface ResourceBrowserProps {
 }
 
 function ResourceBrowser({ resources, selectedCategory, selectedId, onSelectResource }: ResourceBrowserProps) {
-    // Track which groups are expanded. Default: all expanded.
+    // Default: all collapsed. Auto-expand the group containing a selected item.
     const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
         const init: Record<string, boolean> = {};
         for (let i = 0; i < CATEGORIES.length; i++) {
-            init[CATEGORIES[i].key] = true;
+            init[CATEGORIES[i].key] = false;
         }
         return init;
     });
+
+    // When selection changes externally (e.g. resource link navigation),
+    // auto-expand the target group so the item is visible.
+    useEffect(() => {
+        if (selectedCategory) {
+            setExpanded(prev => {
+                if (prev[selectedCategory]) return prev;
+                return { ...prev, [selectedCategory]: true };
+            });
+        }
+    }, [selectedCategory, selectedId]);
 
     const toggleGroup = useCallback((key: string) => {
         setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
@@ -104,7 +115,7 @@ function ResourceBrowser({ resources, selectedCategory, selectedId, onSelectReso
                     resources[cat.key] as Map<string, unknown>,
                 );
                 const ids = Object.keys(record);
-                const isExpanded = expanded[cat.key] ?? true;
+                const isExpanded = expanded[cat.key] ?? false;
 
                 return (
                     <div key={cat.key} className="res-group">
@@ -122,17 +133,14 @@ function ResourceBrowser({ resources, selectedCategory, selectedId, onSelectReso
                             const shaderStages = cat.key === 'shaderModules' && res?.code
                                 ? detectShaderStages(res.code) : [];
                             return (
-                                <div
+                                <ResourceItem
                                     key={id}
-                                    className={`resource-item${isSelected ? ' selected' : ''}`}
+                                    id={id}
+                                    label={res?.label}
+                                    isSelected={isSelected}
+                                    shaderStages={shaderStages}
                                     onClick={() => onSelectResource(cat.key, id)}
-                                >
-                                    <span className="resource-id">{id}</span>
-                                    {shaderStages.map(s => (
-                                        <span key={s} className={`shader-stage-badge stage-${s} small`}>{s[0].toUpperCase()}</span>
-                                    ))}
-                                    {res?.label && <span className="resource-label">{res.label}</span>}
-                                </div>
+                                />
                             );
                         })}
                         {isExpanded && ids.length === 0 && (
@@ -141,6 +149,38 @@ function ResourceBrowser({ resources, selectedCategory, selectedId, onSelectReso
                     </div>
                 );
             })}
+        </div>
+    );
+}
+
+// ── Single resource item — scrolls into view when selected ────────────
+
+function ResourceItem({ id, label, isSelected, shaderStages, onClick }: {
+    id: string;
+    label?: string;
+    isSelected: boolean;
+    shaderStages: string[];
+    onClick: () => void;
+}) {
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (isSelected && ref.current) {
+            ref.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+    }, [isSelected]);
+
+    return (
+        <div
+            ref={ref}
+            className={`resource-item${isSelected ? ' selected' : ''}`}
+            onClick={onClick}
+        >
+            <span className="resource-id">{id}</span>
+            {shaderStages.map(s => (
+                <span key={s} className={`shader-stage-badge stage-${s} small`}>{s[0].toUpperCase()}</span>
+            ))}
+            {label && <span className="resource-label">{label}</span>}
         </div>
     );
 }
