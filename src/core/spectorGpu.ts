@@ -322,7 +322,8 @@ function pixelsToDataUrl(
 
     ctx.drawImage(fullCanvas, 0, 0, thumbW, thumbH);
 
-    return canvas.toDataURL('image/png');
+    // JPEG is ~5-10x smaller than PNG for photo-like GPU textures.
+    return canvas.toDataURL('image/jpeg', 0.7);
 }
 
 export class SpectorGPU {
@@ -1043,9 +1044,9 @@ export class SpectorGPU {
     // ── Async texture readback ───────────────────────────────────────
 
     /** Maximum number of textures to read back per capture. */
-    private static readonly MAX_READBACK_TEXTURES = 32;
+    private static readonly MAX_READBACK_TEXTURES = 16;
     /** Maximum thumbnail dimension (px). Textures are scaled down to fit. */
-    private static readonly READBACK_THUMB_SIZE = 128;
+    private static readonly READBACK_THUMB_SIZE = 64;
     /** Timeout for the entire readback operation (ms). */
     private static readonly READBACK_TIMEOUT_MS = 5000;
 
@@ -1202,7 +1203,10 @@ export class SpectorGPU {
             return;
         }
 
-        // Read pixels and generate thumbnails
+        // Read pixels and generate thumbnails (with total size budget)
+        let totalPreviewBytes = 0;
+        const MAX_PREVIEW_BYTES = 2 * 1024 * 1024; // 2 MB total budget
+
         for (const task of tasks) {
             try {
                 const data = new Uint8Array(task.buffer.getMappedRange());
@@ -1212,12 +1216,19 @@ export class SpectorGPU {
                     SpectorGPU.READBACK_THUMB_SIZE,
                 );
                 if (dataUrl) {
+                    totalPreviewBytes += dataUrl.length;
+                    if (totalPreviewBytes > MAX_PREVIEW_BYTES) {
+                        Logger.warn('Preview size budget exceeded, skipping remaining textures');
+                        task.buffer.unmap();
+                        task.buffer.destroy();
+                        break;
+                    }
                     this._recorderManager.setTexturePreview(task.id, dataUrl);
                 }
             } catch (e) {
                 Logger.warn(`Readback read failed for ${task.id}:`, e);
             } finally {
-                task.buffer.unmap();
+                try { task.buffer.unmap(); } catch { /* may already be unmapped */ }
                 task.buffer.destroy();
             }
         }
