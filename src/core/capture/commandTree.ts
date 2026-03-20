@@ -1,5 +1,6 @@
 import { CommandNodeBuilder } from './commandNode';
 import { CommandType, ICommandNode, ICaptureStats } from '@shared/types';
+import { Logger } from '@shared/utils/logger';
 
 /**
  * Builds the command tree for a single frame capture.
@@ -52,6 +53,10 @@ export class CommandTreeBuilder {
      * Pop the current scope (e.g., when pass.end() or submit completes).
      */
     public popScope(): CommandNodeBuilder | undefined {
+        if (this._scopeStack.length === 0) {
+            Logger.warn('popScope called on empty stack — mismatched begin/end?');
+            return undefined;
+        }
         return this._scopeStack.pop();
     }
 
