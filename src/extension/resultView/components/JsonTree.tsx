@@ -5,16 +5,25 @@ interface JsonTreeProps {
     data: unknown;
     depth?: number;
     label?: string;
+    visited?: WeakSet<object>;
 }
 
 const MAX_DEPTH = 10;
 
-export function JsonTree({ data, depth = 0, label }: JsonTreeProps) {
+export function JsonTree({ data, depth = 0, label, visited = new WeakSet() }: JsonTreeProps) {
     const [expanded, setExpanded] = useState(depth < 3);
 
     const toggle = useCallback(() => setExpanded(prev => !prev), []);
 
     if (depth > MAX_DEPTH) return <span className="json-truncated">…</span>;
+
+    // Circular reference detection for objects and arrays
+    if (typeof data === 'object' && data !== null) {
+        if (visited.has(data)) {
+            return <span className="json-circular">[Circular]</span>;
+        }
+        visited.add(data);
+    }
 
     if (data === null) return <JsonLeaf label={label} value="null" className="json-null" />;
     if (data === undefined) return <JsonLeaf label={label} value="undefined" className="json-undefined" />;
@@ -45,7 +54,7 @@ export function JsonTree({ data, depth = 0, label }: JsonTreeProps) {
                 {expanded && (
                     <div className="json-children">
                         {data.map((item, i) => (
-                            <JsonTree key={i} data={item} depth={depth + 1} label={String(i)} />
+                            <JsonTree key={i} data={item} depth={depth + 1} label={String(i)} visited={visited} />
                         ))}
                     </div>
                 )}
@@ -66,7 +75,7 @@ export function JsonTree({ data, depth = 0, label }: JsonTreeProps) {
                 {expanded && (
                     <div className="json-children">
                         {entries.map(([key, value]) => (
-                            <JsonTree key={key} data={value} depth={depth + 1} label={key} />
+                            <JsonTree key={key} data={value} depth={depth + 1} label={key} visited={visited} />
                         ))}
                     </div>
                 )}
