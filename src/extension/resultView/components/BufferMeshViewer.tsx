@@ -9,8 +9,8 @@ import { Scene } from '@babylonjs/core/scene';
 import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
+import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
-import { Material } from '@babylonjs/core/Materials/material';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -39,7 +39,8 @@ export default function BufferMeshViewer({
     const [stats, setStats] = useState<string>('');
     const engineRef = useRef<Engine | null>(null);
     const cameraRef = useRef<ArcRotateCamera | null>(null);
-    const materialRef = useRef<StandardMaterial | null>(null);
+    const wireMeshRef = useRef<Mesh | null>(null);
+    const solidMeshRef = useRef<Mesh | null>(null);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -72,9 +73,14 @@ export default function BufferMeshViewer({
 
             new HemisphericLight('light', new Vector3(0, 1, 0.5), scene);
 
-            const mesh = createMeshFromVertexData(rawData, layout, scene, indexData, indexFormat);
-            if (mesh) {
-                const bounds = mesh.getBoundingInfo().boundingBox;
+            const result = createMeshes(rawData, layout, scene, indexData, indexFormat);
+            if (result) {
+                wireMeshRef.current = result.wireMesh;
+                solidMeshRef.current = result.solidMesh;
+                // Default: show wireframe, hide solid
+                result.solidMesh.setEnabled(false);
+
+                const bounds = result.solidMesh.getBoundingInfo().boundingBox;
                 const center = bounds.center;
                 const extent = bounds.extendSize.length();
                 camera.target = center;
@@ -88,11 +94,6 @@ export default function BufferMeshViewer({
                 );
             }
 
-            // Store material ref for render mode changes
-            if (mesh?.material instanceof StandardMaterial) {
-                materialRef.current = mesh.material;
-            }
-
             engine.runRenderLoop(() => scene.render());
 
             const onResize = () => { if (!disposedRef.current && engine) engine.resize(); };
@@ -104,7 +105,8 @@ export default function BufferMeshViewer({
                 window.removeEventListener('resize', onResize);
                 engineRef.current = null;
                 cameraRef.current = null;
-                materialRef.current = null;
+                wireMeshRef.current = null;
+                solidMeshRef.current = null;
                 eng.dispose();
             };
         } catch (e) {
@@ -115,23 +117,31 @@ export default function BufferMeshViewer({
         }
     }, [rawData, layout, indexData, indexFormat]);
 
-    // Apply render mode changes without recreating the scene
+    // Toggle wireframe/solid visibility based on render mode
     useEffect(() => {
-        const mat = materialRef.current;
-        if (!mat) return;
+        const wire = wireMeshRef.current;
+        const solid = solidMeshRef.current;
+        if (!wire || !solid) return;
+
         switch (renderMode) {
             case 'wireframe':
-                mat.fillMode = Material.WireFrameFillMode;
-                mat.pointsCloud = false;
+                wire.setEnabled(true);
+                solid.setEnabled(false);
                 break;
             case 'solid':
-                mat.fillMode = Material.TriangleFillMode;
-                mat.pointsCloud = false;
+                wire.setEnabled(false);
+                solid.setEnabled(true);
+                if (solid.material instanceof StandardMaterial) {
+                    solid.material.pointsCloud = false;
+                }
                 break;
             case 'points':
-                mat.fillMode = Material.TriangleFillMode;
-                mat.pointsCloud = true;
-                mat.pointSize = 3;
+                wire.setEnabled(false);
+                solid.setEnabled(true);
+                if (solid.material instanceof StandardMaterial) {
+                    solid.material.pointsCloud = true;
+                    solid.material.pointSize = 3;
+                }
                 break;
         }
     }, [renderMode]);
@@ -164,13 +174,13 @@ export default function BufferMeshViewer({
 
 // ── Mesh construction from raw vertex data ───────────────────────────
 
-function createMeshFromVertexData(
+function createMeshes(
     rawData: Uint8Array,
     layout: IVertexBufferLayout,
     scene: Scene,
     indexData?: Uint8Array,
     indexFormat?: 'uint16' | 'uint32',
-): Mesh | null {
+): { wireMesh: Mesh; solidMesh: Mesh } | null {
     const stride = layout.arrayStride;
     if (stride === 0) return null;
 
@@ -224,43 +234,49 @@ function createMeshFromVertexData(
         }
     }
 
-    // Use actual index buffer if available, otherwise sequential
+    // Parse indices
     let indices: Uint32Array;
     if (indexData && indexData.length > 0) {
         const idv = new DataView(indexData.buffer, indexData.byteOffset, indexData.byteLength);
         if (indexFormat === 'uint32') {
             const count = Math.floor(indexData.length / 4);
             indices = new Uint32Array(count);
-            for (let i = 0; i < count; i++) {
-                indices[i] = idv.getUint32(i * 4, true);
-            }
+            for (let i = 0; i < count; i++) indices[i] = idv.getUint32(i * 4, true);
         } else {
-            // uint16
             const count = Math.floor(indexData.length / 2);
             indices = new Uint32Array(count);
-            for (let i = 0; i < count; i++) {
-                indices[i] = idv.getUint16(i * 2, true);
-            }
+            for (let i = 0; i < count; i++) indices[i] = idv.getUint16(i * 2, true);
         }
     } else {
         indices = new Uint32Array(vertexCount);
-        for (let i = 0; i < vertexCount; i++) {
-            indices[i] = i;
-        }
+        for (let i = 0; i < vertexCount; i++) indices[i] = i;
     }
 
-    const mesh = new Mesh('bufferPreview', scene);
+    // ── Wireframe mesh: actual GL_LINES via CreateLineSystem ──
+    const lines: Vector3[][] = [];
+    for (let i = 0; i + 2 < indices.length; i += 3) {
+        const i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
+        const p0 = new Vector3(positions[i0 * 3], positions[i0 * 3 + 1], positions[i0 * 3 + 2]);
+        const p1 = new Vector3(positions[i1 * 3], positions[i1 * 3 + 1], positions[i1 * 3 + 2]);
+        const p2 = new Vector3(positions[i2 * 3], positions[i2 * 3 + 1], positions[i2 * 3 + 2]);
+        lines.push([p0, p1, p2, p0]);
+    }
+    const wireMesh = MeshBuilder.CreateLineSystem('wireframe', { lines }, scene);
+    wireMesh.color = new Color3(0.31, 0.76, 0.97);
+
+    // ── Solid mesh: standard triangle mesh ──
+    const solidMesh = new Mesh('solid', scene);
     const vd = new VertexData();
     vd.positions = positions;
     if (normals) vd.normals = normals;
     vd.indices = indices;
-    vd.applyToMesh(mesh);
+    vd.applyToMesh(solidMesh);
 
-    const mat = new StandardMaterial('wireMat', scene);
-    mat.fillMode = Material.WireFrameFillMode;
+    const mat = new StandardMaterial('solidMat', scene);
     mat.emissiveColor = new Color3(0.31, 0.76, 0.97);
     mat.disableLighting = true;
-    mesh.material = mat;
+    mat.backFaceCulling = false;
+    solidMesh.material = mat;
 
-    return mesh;
+    return { wireMesh, solidMesh };
 }
