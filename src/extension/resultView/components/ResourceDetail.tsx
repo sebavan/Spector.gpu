@@ -199,9 +199,34 @@ export function TextureViewDetail({ view, capture }: { view: ITextureViewInfo; c
             {parentTexture && (
                 <TextureThumbnail texture={parentTexture} capture={capture} />
             )}
-            <JsonTree data={view} />
+            <JsonTree data={filterBulkFields(view)} />
         </div>
     );
+}
+
+// ── Strip bulk fields that are already rendered by dedicated viewers ───
+
+/**
+ * Keys whose values are large blobs already rendered by specialised
+ * sub-components (hex dump, shader editor, image preview).  Keeping them
+ * in the JsonTree creates walls of base-64 / WGSL / data-URL text that
+ * bury the actually useful metadata.
+ */
+const BULK_KEYS: ReadonlySet<string> = new Set([
+    'dataBase64',       // buffers  – shown in hex dump / vertex table
+    'code',             // shaders  – shown in syntax-highlighted editor
+    'previewDataUrl',   // textures – shown as image preview
+    'facePreviewUrls',  // textures – shown as cube face grid
+]);
+
+function filterBulkFields(data: unknown): unknown {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
+    const src = data as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(src)) {
+        if (!BULK_KEYS.has(key)) out[key] = src[key];
+    }
+    return out;
 }
 
 // ── Unified resource detail panel ─────────────────────────────────────
@@ -225,7 +250,7 @@ export function ResourceDetail({ category, resource, capture }: ResourceDetailPr
         return (
             <>
                 <TextureThumbnail texture={resource as ITextureInfo} capture={capture} />
-                <JsonTree data={resource} />
+                <JsonTree data={filterBulkFields(resource)} />
             </>
         );
     }
@@ -238,5 +263,5 @@ export function ResourceDetail({ category, resource, capture }: ResourceDetailPr
         return <BufferDetail buffer={resource as IBufferInfo} capture={capture} />;
     }
 
-    return <JsonTree data={resource} />;
+    return <JsonTree data={filterBulkFields(resource)} />;
 }
