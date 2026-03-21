@@ -229,15 +229,24 @@ export function BufferDetail({ buffer, capture }: BufferDetailProps) {
                 </div>
             )}
 
-            {rawData && resolved && (
-                <VertexDataTable rawData={rawData} layout={resolved.layout} />
+            {rawData && (
+                <div className="buffer-data-panels">
+                    <div className="buffer-data-left">
+                        {resolved && (
+                            <VertexDataTable rawData={rawData} layout={resolved.layout} />
+                        )}
+                        {isUniformOrStorage && !isVertexBuffer && (
+                            <Float32Table rawData={rawData} />
+                        )}
+                        {!resolved && !isUniformOrStorage && (
+                            <HexDump data={rawData} maxBytes={2048} />
+                        )}
+                    </div>
+                    <div className="buffer-data-right">
+                        <HexDump data={rawData} maxBytes={2048} />
+                    </div>
+                </div>
             )}
-
-            {rawData && isUniformOrStorage && !isVertexBuffer && (
-                <Float32Table rawData={rawData} />
-            )}
-
-            {rawData && <HexDump data={rawData} maxBytes={2048} />}
 
             {!rawData && (
                 <div className="buffer-no-data">No readback data available</div>

@@ -1024,7 +1024,23 @@ $gutter-width: 48px;
 .buffer-detail {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
+}
+
+.buffer-data-panels {
+    display: flex;
+    gap: 12px;
+    min-height: 0;
+
+    .buffer-data-left,
+    .buffer-data-right {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        max-height: 320px;
+        display: flex;
+        flex-direction: column;
+    }
 }
 
 .buffer-info-grid {
@@ -1067,7 +1083,8 @@ $gutter-width: 48px;
     line-height: 1.5;
     color: $text-primary;
     overflow: auto;
-    max-height: 300px;
+    max-height: none;
+    flex: 1;
     white-space: pre;
     tab-size: 4;
 }
@@ -1202,6 +1219,7 @@ $gutter-width: 48px;
     background: $bg-tertiary;
     border: 1px solid $border;
     border-radius: 2px;
-    max-height: 360px;
+    max-height: none;
     overflow: auto;
+    flex: 1;
 }
