@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Spector.GPU — WebGPU Inspector",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Capture and inspect WebGPU frames on any website",
     "permissions": [
         "activeTab",
