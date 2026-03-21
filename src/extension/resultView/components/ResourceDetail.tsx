@@ -3,6 +3,7 @@ import type { IBufferInfo, ICapture, ICommandNode, IShaderModuleInfo, ITextureIn
 import { resolveMapEntry } from '../resourceMapHelpers';
 import { highlightWGSL } from './wgslHighlighter';
 import { JsonTree } from './JsonTree';
+import { ResourceLink } from './ResourceLink';
 import { BufferDetail } from './BufferDetail';
 
 // ── Detect shader stages from WGSL source ─────────────────────────────
@@ -42,7 +43,7 @@ export function ShaderModuleDetail({ module }: { module: IShaderModuleInfo }) {
     return (
         <div className="shader-module-detail">
             <div className="shader-module-header">
-                <h4>{module.label || module.id}</h4>
+                <h4><ResourceLink id={module.id} /> {module.label && `— ${module.label}`}</h4>
                 {stages.map(s => (
                     <span key={s} className={`shader-stage-badge stage-${s}`}>{s}</span>
                 ))}

@@ -28,7 +28,7 @@ export function PipelineInspector({ node, capture }: { node: ICommandNode | null
 
     return (
         <div className="pipeline-inspector">
-            <h3>Pipeline: {pipeline.label ?? pipeline.id}</h3>
+            <h3>Pipeline: <ResourceLink id={pipeline.id} /> {pipeline.label && `— ${pipeline.label}`}</h3>
             <div className="pipeline-sections">
                 {isRender && (
                     <>
