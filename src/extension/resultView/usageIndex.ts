@@ -58,6 +58,38 @@ function addEntry(
     list.push(entry);
 }
 
+// ─── Deep arg scanning ───────────────────────────────────────────────
+
+/**
+ * Recursively walk a serialized args value and invoke `cb` for every
+ * `__id` string found.  Serialized GPU objects have the shape
+ * `{ __type: "GPUBuffer", __id: "buf_0", label?: "..." }` and may be
+ * nested at arbitrary depth inside arrays or plain objects.
+ */
+function collectIds(value: unknown, cb: (id: string) => void): void {
+    if (value === null || value === undefined || typeof value !== 'object') return;
+
+    if (Array.isArray(value)) {
+        for (let i = 0; i < value.length; i++) {
+            collectIds(value[i], cb);
+        }
+        return;
+    }
+
+    const obj = value as Record<string, unknown>;
+    const id = obj['__id'];
+    if (typeof id === 'string' && id.length > 0) {
+        cb(id);
+    }
+    const keys = Object.keys(obj);
+    for (let k = 0; k < keys.length; k++) {
+        const v = obj[keys[k]];
+        if (v !== null && typeof v === 'object') {
+            collectIds(v, cb);
+        }
+    }
+}
+
 // ─── Command tree scan ───────────────────────────────────────────────
 
 function scanCommands(
@@ -85,19 +117,9 @@ function scanCommands(
             }
         }
 
-        // Scan args for __id fields (convention for resource references in serialized args)
-        const args = node.args;
-        if (args) {
-            const argKeys = Object.keys(args);
-            for (let a = 0; a < argKeys.length; a++) {
-                const key = argKeys[a];
-                if (key.endsWith('__id')) {
-                    const val = args[key];
-                    if (typeof val === 'string' && val.length > 0) {
-                        addEntry(index, val, entry);
-                    }
-                }
-            }
+        // Deep-scan args for __id fields at any nesting depth
+        if (node.args) {
+            collectIds(node.args, (id) => addEntry(index, id, entry));
         }
 
         if (node.children.length > 0) {
