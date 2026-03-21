@@ -60,6 +60,8 @@ Everything needed to set up the project from scratch.
 
 Key: Two content scripts — ISOLATED world relay proxy + MAIN world for WebGPU access.
 
+**CSP constraint**: Manifest V3 does NOT allow `unsafe-eval` in `content_security_policy.extension_pages`. Babylon.js (used for 3D buffer viewer) must work without eval. If it can't, the React.lazy error boundary catches the failure gracefully — the rest of the buffer detail (layout card, vertex table, hex dump) still works.
+
 ## Message Flow
 
 ```

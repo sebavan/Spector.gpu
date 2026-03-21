@@ -74,9 +74,44 @@ NavigationContext: `navigateToResource(target)` switches sidebar to resources mo
 - Finds vertex layout: DFS search through command tree for draw calls binding this buffer → resolve pipeline → get `vertex.buffers[slot]`
 - Parses positions (shaderLocation 0 or first float32x3/x4 attribute) via DataView.getFloat32
 - Optionally parses normals (shaderLocation 1)
-- Creates Babylon.js Mesh + VertexData + wireframe StandardMaterial (accent color #4fc3f7)
+- Creates Babylon.js Mesh + VertexData + StandardMaterial (accent color #4fc3f7)
+- **Wireframe**: Uses `MeshBuilder.CreateLineSystem` (actual GL_LINES) — not `mat.wireframe` which doesn't work with tree-shaking. Creates two meshes: wireMesh (lines) + solidMesh (triangles). Render mode toggle switches visibility.
+- **Index buffer**: Resolves `indexBufferId` from the draw call, decodes base64, passes uint16/uint32 data for proper shared-vertex wireframe.
+- **Render modes**: wireframe (line mesh visible), solid (triangle mesh, lighting enabled), points (triangle mesh with pointsCloud=true, pointSize=3)
+- **Toolbar**: Wireframe / Solid / Points toggle buttons + Reset Camera
+- **Stats bar**: vertex count, bounding box min/max
 - ArcRotateCamera auto-framed on bounding box
-- **Resize handler must guard against disposed engine** — use `disposedRef` to skip `engine.resize()` after cleanup
+- **Resize handler must guard against disposed engine** — use `disposedRef`
+- **CSP**: Manifest V3 does NOT allow `unsafe-eval`. Babylon.js must work without it. If it fails, `React.lazy` error boundary catches gracefully.
+
+### BufferDetail Layout
+The buffer detail view uses a specific flex layout to eliminate outer scrolling:
+
+```
+buffer-detail (flex column, height:100%)
+├── buffer-info-grid (flex-shrink:0)
+├── LayoutInfoCard (flex-shrink:0, if vertex buffer with resolved layout)
+├── 3D viewer (flex-shrink:0, 300px height)
+└── buffer-data-panels (flex:1, flex row, min-height:0)
+    ├── buffer-data-left (flex:1, internal scroll)
+    │   └── VertexDataTable / Float32Table / HexDump
+    └── buffer-data-right (flex:1, internal scroll)
+        └── HexDump
+```
+
+**Critical CSS rules for no-outer-scroll layout:**
+- `tab-content:has(.buffer-detail)` → `overflow-y: hidden` — kills the outer scrollbar
+- Both data panels: `flex:1; min-height:0` — fill remaining vertical space
+- `hex-dump-section` and `vertex-table-section`: `display:flex; flex-direction:column; flex:1; min-height:0`
+- Inner scrollable elements (`.hex-dump`, `.vertex-table-wrap`): `flex:1; overflow:auto; max-height:none`
+
+### Vertex Data Table Colors
+```
+.attr-pos  → #4ec9b0 (teal — position attributes)
+.attr-norm → #c586c0 (purple — normal attributes)
+.attr-uv   → #dcdcaa (yellow — UV/texcoord attributes)
+.vtx-idx   → $text-muted (row index)
+```
 
 ### JsonTree (`JsonTree.tsx`)
 - Recursive collapsible JSON viewer
