@@ -54,8 +54,23 @@ export function JsonTree({ data, depth = 0, label }: JsonTreeProps) {
     }
 
     if (typeof data === 'object') {
-        const entries = Object.entries(data);
+        const obj = data as Record<string, unknown>;
+        const entries = Object.entries(obj);
         if (entries.length === 0) return <JsonLeaf label={label} value="{}" className="json-object" />;
+
+        // Serialized GPU object with tracking ID — render as compact link
+        if (obj.__type && typeof obj.__type === 'string' && obj.__id && typeof obj.__id === 'string') {
+            const link = maybeResourceLink(obj.__id as string);
+            const objLabel = obj.label ? ` "${obj.label}"` : '';
+            return (
+                <div className="json-leaf" style={{ marginLeft: 16 }}>
+                    {label != null && <span className="json-key">{label}: </span>}
+                    <span className="json-string">{obj.__type as string}{objLabel} </span>
+                    {link || <span className="json-string">{obj.__id as string}</span>}
+                </div>
+            );
+        }
+
         return (
             <div className="json-node" style={depth > 0 ? { marginLeft: 16 } : undefined}>
                 <span className="json-toggle" onClick={toggle}>
