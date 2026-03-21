@@ -73,46 +73,45 @@ describe('JsonTree', () => {
         expect(container.textContent).toContain('{}');
     });
 
-    // ── Circular reference detection (PR #11 bug) ──────────────────
+    // ── No false [Circular] markers ───────────────────────────────────
+    // Capture data is serialized JSON — no actual circular refs.
+    // The same-shaped objects at different tree positions must NOT
+    // be marked as circular.
 
-    it('handles circular references without crashing', () => {
-        const obj: any = { a: 1 };
-        obj.self = obj; // circular!
+    it('does not show [Circular] for sibling objects with same shape', () => {
+        const data = {
+            a: { x: 1, y: 2 },
+            b: { x: 1, y: 2 },
+            c: { x: 1, y: 2 },
+        };
 
-        // Must NOT throw or infinite-loop
-        expect(() => {
-            render(<JsonTree data={obj} />);
-        }).not.toThrow();
+        const { container } = render(<JsonTree data={data} />);
+        expect(container.textContent).not.toContain('[Circular]');
+        // All three objects should render their values
+        expect(container.textContent).toContain('a');
+        expect(container.textContent).toContain('b');
+        expect(container.textContent).toContain('c');
     });
 
-    it('shows [Circular] marker for circular references', () => {
+    it('does not show [Circular] for shared object references', () => {
+        // Even if the SAME object appears in multiple places
+        // (which can happen with in-memory capture data before serialization),
+        // we should render it, relying on MAX_DEPTH for protection.
+        const shared = { val: 42 };
+        const data = { first: shared, second: shared, third: shared };
+
+        const { container } = render(<JsonTree data={data} />);
+        expect(container.textContent).not.toContain('[Circular]');
+    });
+
+    it('does not crash on deeply nested objects (MAX_DEPTH protection)', () => {
+        // Build actual circular reference — should not infinite-loop
+        // because MAX_DEPTH (10) limits recursion regardless
         const obj: any = { a: 1 };
         obj.self = obj;
 
-        const { container } = render(<JsonTree data={obj} />);
-        expect(container.textContent).toContain('[Circular]');
-    });
-
-    it('handles mutual circular references', () => {
-        const a: any = { name: 'a' };
-        const b: any = { name: 'b' };
-        a.ref = b;
-        b.ref = a;
-
         expect(() => {
-            render(<JsonTree data={a} />);
-        }).not.toThrow();
-
-        const { container } = render(<JsonTree data={a} />);
-        expect(container.textContent).toContain('[Circular]');
-    });
-
-    it('handles circular reference inside array', () => {
-        const arr: any[] = [1, 2];
-        arr.push(arr); // array references itself
-
-        expect(() => {
-            render(<JsonTree data={arr} />);
+            render(<JsonTree data={obj} />);
         }).not.toThrow();
     });
 
@@ -134,5 +133,25 @@ describe('JsonTree', () => {
         // to verify the component returns the truncation marker.
         const { container } = render(<JsonTree data={{ deep: true }} depth={11} />);
         expect(container.textContent).toContain('…');
+    });
+
+    // ── Resource ID auto-linking ────────────────────────────────────
+
+    it('renders object keys with resource ID values (maybeResourceLink mock returns null)', () => {
+        // With our mock, maybeResourceLink returns null so IDs render as strings.
+        // This test verifies the ID values are still present in the output.
+        const data = {
+            pipelineId: 'rp_3',
+            moduleId: 'shd_0',
+            textureId: 'tex_1',
+            plain: 'hello',
+        };
+        const { container } = render(<JsonTree data={data} />);
+        expect(container.textContent).toContain('pipelineId');
+        expect(container.textContent).toContain('rp_3');
+        expect(container.textContent).toContain('moduleId');
+        expect(container.textContent).toContain('shd_0');
+        expect(container.textContent).toContain('textureId');
+        expect(container.textContent).toContain('tex_1');
     });
 });
