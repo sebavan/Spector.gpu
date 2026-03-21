@@ -23,7 +23,7 @@
 import { Observable } from '@shared/utils';
 import { Logger } from '@shared/utils/logger';
 import { globalIdGenerator } from '@shared/utils';
-import { serializeDescriptor } from '@shared/utils/serialization';
+import { serializeDescriptor, type IdResolver } from '@shared/utils/serialization';
 import { SPECTOR_GPU_VERSION, CAPTURE_TIMEOUT_MS } from '@shared/constants';
 import type { IAdapterInfo, IBufferInfo, ICapture, ICaptureStats, CommandType as CommandTypeEnum, ITextureInfo } from '@shared/types';
 import { CommandType } from '@shared/types';
@@ -95,10 +95,10 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
 }
 
 /** Convert positional args array to Record<string, unknown> for ICommandNode. */
-function argsToRecord(args: readonly unknown[]): Record<string, unknown> {
+function argsToRecord(args: readonly unknown[], idResolver?: IdResolver): Record<string, unknown> {
     const record: Record<string, unknown> = {};
     for (let i = 0; i < args.length; i++) {
-        record[i] = serializeDescriptor(args[i]);
+        record[i] = serializeDescriptor(args[i], idResolver);
     }
     return record;
 }
@@ -380,6 +380,8 @@ export class SpectorGPU {
 
     // Subsystems — allocated once, reused across captures.
     private readonly _recorderManager = new RecorderManager();
+    /** Bound ID resolver for serializeDescriptor — resolves GPU objects to tracking IDs. */
+    private readonly _idResolver: IdResolver = (obj) => this._recorderManager.getId(obj);
     private readonly _gpuSpy = new GpuSpy();
     private readonly _deviceSpy: DeviceSpy;
     private readonly _queueSpy: QueueSpy;
@@ -821,7 +823,7 @@ export class SpectorGPU {
             this._renderPassSpy.spyOnRenderPass(pass);
             this._resetPassState();
             if (this._isCapturing && this._commandTree) {
-                const desc = serializeDescriptor(descriptor);
+                const desc = serializeDescriptor(descriptor, this._idResolver);
                 this._commandTree.pushScope(
                     CommandType.RenderPass,
                     'beginRenderPass',
@@ -834,7 +836,7 @@ export class SpectorGPU {
             this._computePassSpy.spyOnComputePass(pass);
             this._resetPassState();
             if (this._isCapturing && this._commandTree) {
-                const desc = serializeDescriptor(descriptor);
+                const desc = serializeDescriptor(descriptor, this._idResolver);
                 this._commandTree.pushScope(
                     CommandType.ComputePass,
                     'beginComputePass',
@@ -849,7 +851,7 @@ export class SpectorGPU {
             if (!this._isCapturing || !this._commandTree) return;
             if (methodName === 'beginRenderPass' || methodName === 'beginComputePass' || methodName === 'finish') return;
             const type = METHOD_TO_COMMAND_TYPE[methodName] ?? CommandType.Other;
-            this._commandTree.addCommand(type, methodName, argsToRecord(args));
+            this._commandTree.addCommand(type, methodName, argsToRecord(args, this._idResolver));
         });
 
         // ── Render pass events ───────────────────────────────────────
@@ -861,7 +863,7 @@ export class SpectorGPU {
             this._trackPassState(methodName, args);
 
             const type = METHOD_TO_COMMAND_TYPE[methodName] ?? CommandType.Other;
-            const node = this._commandTree.addCommand(type, methodName, argsToRecord(args));
+            const node = this._commandTree.addCommand(type, methodName, argsToRecord(args, this._idResolver));
 
             // Attach state snapshot to draw calls.
             if (type === CommandType.Draw) {
@@ -888,7 +890,7 @@ export class SpectorGPU {
             this._trackPassState(methodName, args);
 
             const type = METHOD_TO_COMMAND_TYPE[methodName] ?? CommandType.Other;
-            const node = this._commandTree.addCommand(type, methodName, argsToRecord(args));
+            const node = this._commandTree.addCommand(type, methodName, argsToRecord(args, this._idResolver));
 
             if (type === CommandType.Dispatch) {
                 node.setStateSnapshot({

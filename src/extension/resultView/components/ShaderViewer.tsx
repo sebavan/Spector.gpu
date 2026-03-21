@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import type { ICommandNode, ICapture, IShaderModuleInfo, IRenderPipelineInfo, IComputePipelineInfo } from '@shared/types';
 import { resolveMapEntry } from '../resourceMapHelpers';
+import { ResourceLink } from './ResourceLink';
 
 export function ShaderViewer({ node, capture }: { node: ICommandNode | null; capture: ICapture }) {
     const shaders = useMemo(() => {
@@ -61,7 +62,7 @@ export function ShaderViewer({ node, capture }: { node: ICommandNode | null; cap
         <div className="shader-viewer">
             {shaders.map((shader, i) => (
                 <div key={i} className="shader-section">
-                    <h4>{shader.label}</h4>
+                    <h4>{shader.label} — <ResourceLink id={shader.moduleId} /></h4>
                     <pre className="shader-code"><code>{shader.code}</code></pre>
                 </div>
             ))}

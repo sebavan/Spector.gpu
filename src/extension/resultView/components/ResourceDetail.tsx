@@ -1,8 +1,10 @@
 import React from 'react';
 import type { IBufferInfo, ICapture, ICommandNode, IShaderModuleInfo, ITextureInfo, ITextureViewInfo } from '@shared/types';
+import type { UsageEntry } from '../usageIndex';
 import { resolveMapEntry } from '../resourceMapHelpers';
 import { highlightWGSL } from './wgslHighlighter';
 import { JsonTree } from './JsonTree';
+import { ResourceLink } from './ResourceLink';
 import { BufferDetail } from './BufferDetail';
 
 // ── Detect shader stages from WGSL source ─────────────────────────────
@@ -42,7 +44,7 @@ export function ShaderModuleDetail({ module }: { module: IShaderModuleInfo }) {
     return (
         <div className="shader-module-detail">
             <div className="shader-module-header">
-                <h4>{module.label || module.id}</h4>
+                <h4><ResourceLink id={module.id} /> {module.label && `— ${module.label}`}</h4>
                 {stages.map(s => (
                     <span key={s} className={`shader-stage-badge stage-${s}`}>{s}</span>
                 ))}
@@ -199,7 +201,61 @@ export function TextureViewDetail({ view, capture }: { view: ITextureViewInfo; c
             {parentTexture && (
                 <TextureThumbnail texture={parentTexture} capture={capture} />
             )}
-            <JsonTree data={view} />
+            <JsonTree data={filterBulkFields(view)} />
+        </div>
+    );
+}
+
+// ── Strip bulk fields that are already rendered by dedicated viewers ───
+
+/**
+ * Keys whose values are large blobs already rendered by specialised
+ * sub-components (hex dump, shader editor, image preview).  Keeping them
+ * in the JsonTree creates walls of base-64 / WGSL / data-URL text that
+ * bury the actually useful metadata.
+ */
+const BULK_KEYS: ReadonlySet<string> = new Set([
+    'dataBase64',       // buffers  – shown in hex dump / vertex table
+    'code',             // shaders  – shown in syntax-highlighted editor
+    'previewDataUrl',   // textures – shown as image preview
+    'facePreviewUrls',  // textures – shown as cube face grid
+]);
+
+function filterBulkFields(data: unknown): unknown {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
+    const src = data as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(src)) {
+        if (!BULK_KEYS.has(key)) out[key] = src[key];
+    }
+    return out;
+}
+
+// ── Used-by cross-reference section ───────────────────────────────────
+
+function UsedBySection({ resourceId, usageIndex }: { resourceId: string; usageIndex: Map<string, UsageEntry[]> }) {
+    const usages = usageIndex.get(resourceId);
+    if (!usages || usages.length === 0) return null;
+
+    const commands = usages.filter(u => u.type === 'command');
+    const resources = usages.filter(u => u.type === 'resource');
+
+    return (
+        <div className="used-by-section">
+            <h4>Used By</h4>
+            <div className="used-by-list">
+                {resources.map((u, i) => (
+                    <div key={`r-${i}`} className="used-by-item">
+                        <ResourceLink id={u.id} />
+                        <span className="used-by-label">{u.label}</span>
+                    </div>
+                ))}
+                {commands.map((u, i) => (
+                    <div key={`c-${i}`} className="used-by-item">
+                        <span className="used-by-cmd">{u.label}</span>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
@@ -210,33 +266,58 @@ interface ResourceDetailProps {
     category: string;
     resource: unknown;
     capture: ICapture;
+    usageIndex: Map<string, UsageEntry[]>;
+    resourceId: string | null;
 }
 
-export function ResourceDetail({ category, resource, capture }: ResourceDetailProps) {
+export function ResourceDetail({ category, resource, capture, usageIndex, resourceId }: ResourceDetailProps) {
     if (!resource) {
         return <div className="empty">Select a resource to view details</div>;
     }
 
+    const rid = resourceId ?? (resource as Record<string, unknown>).id as string ?? '';
+
     if (category === 'shaderModules') {
-        return <ShaderModuleDetail module={resource as IShaderModuleInfo} />;
+        return (
+            <>
+                <ShaderModuleDetail module={resource as IShaderModuleInfo} />
+                <UsedBySection resourceId={rid} usageIndex={usageIndex} />
+            </>
+        );
     }
 
     if (category === 'textures') {
         return (
             <>
                 <TextureThumbnail texture={resource as ITextureInfo} capture={capture} />
-                <JsonTree data={resource} />
+                <JsonTree data={filterBulkFields(resource)} />
+                <UsedBySection resourceId={rid} usageIndex={usageIndex} />
             </>
         );
     }
 
     if (category === 'textureViews') {
-        return <TextureViewDetail view={resource as ITextureViewInfo} capture={capture} />;
+        return (
+            <>
+                <TextureViewDetail view={resource as ITextureViewInfo} capture={capture} />
+                <UsedBySection resourceId={rid} usageIndex={usageIndex} />
+            </>
+        );
     }
 
     if (category === 'buffers') {
-        return <BufferDetail buffer={resource as IBufferInfo} capture={capture} />;
+        return (
+            <>
+                <BufferDetail buffer={resource as IBufferInfo} capture={capture} />
+                <UsedBySection resourceId={rid} usageIndex={usageIndex} />
+            </>
+        );
     }
 
-    return <JsonTree data={resource} />;
+    return (
+        <>
+            <JsonTree data={filterBulkFields(resource)} />
+            <UsedBySection resourceId={rid} usageIndex={usageIndex} />
+        </>
+    );
 }

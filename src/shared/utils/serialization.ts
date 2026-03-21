@@ -1,10 +1,13 @@
 const MAX_ARRAY_PREVIEW = 64; // max elements to serialize from typed arrays
 
-export function serializeDescriptor(obj: unknown): unknown {
-    return serializeValue(obj, new WeakSet());
+/** Optional resolver that maps GPU objects to their tracking IDs. */
+export type IdResolver = (obj: object) => string | undefined;
+
+export function serializeDescriptor(obj: unknown, idResolver?: IdResolver): unknown {
+    return serializeValue(obj, new WeakSet(), idResolver);
 }
 
-function serializeValue(value: unknown, seen: WeakSet<object>): unknown {
+function serializeValue(value: unknown, seen: WeakSet<object>, idResolver?: IdResolver): unknown {
     if (value === null || value === undefined) return value;
 
     const type = typeof value;
@@ -56,35 +59,37 @@ function serializeValue(value: unknown, seen: WeakSet<object>): unknown {
 
     // Array
     if (Array.isArray(obj)) {
-        return obj.map(item => serializeValue(item, seen));
+        return obj.map(item => serializeValue(item, seen, idResolver));
     }
 
     // Map
     if (obj instanceof Map) {
         const entries: Record<string, unknown> = {};
         for (const [key, val] of obj) {
-            entries[String(key)] = serializeValue(val, seen);
+            entries[String(key)] = serializeValue(val, seen, idResolver);
         }
         return { __type: 'Map', entries };
     }
 
     // Set
     if (obj instanceof Set) {
-        return { __type: 'Set', values: Array.from(obj).map(v => serializeValue(v, seen)) };
+        return { __type: 'Set', values: Array.from(obj).map(v => serializeValue(v, seen, idResolver)) };
     }
 
-    // GPU objects — just capture the label if present, don't recurse into native objects
+    // GPU objects — include tracked resource ID if available
     if (isGPUObject(obj)) {
+        const resourceId = idResolver?.(obj);
         return {
             __type: obj.constructor?.name ?? 'GPUObject',
             label: (obj as Record<string, unknown>).label ?? undefined,
+            ...(resourceId ? { __id: resourceId } : {}),
         };
     }
 
     // Plain object
     const result: Record<string, unknown> = {};
     for (const key of Object.keys(obj)) {
-        result[key] = serializeValue((obj as Record<string, unknown>)[key], seen);
+        result[key] = serializeValue((obj as Record<string, unknown>)[key], seen, idResolver);
     }
     return result;
 }

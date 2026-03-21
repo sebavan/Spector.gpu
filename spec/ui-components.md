@@ -114,10 +114,12 @@ buffer-detail (flex column, height:100%)
 ```
 
 ### JsonTree (`JsonTree.tsx`)
-- Recursive collapsible JSON viewer
+- Recursive collapsible JSON viewer, max depth 10
 - Color-coded: keys (#9cdcfe), strings (#ce9178), numbers (#b5cea8), booleans (#569cd6), null (#808080)
-- Resource IDs rendered as clickable ResourceLinks
-- **Circular reference detection** — passes `WeakSet<object>` through `visited` prop. Objects already in the set render as `[Circular]` instead of recursing infinitely.
+- **Auto-links resource IDs**: `maybeResourceLink(value)` checks if a string matches `^(buf|tex|tv|smp|shd|rp|cp|bg|bgl)_\d+$` — if yes, renders as clickable ResourceLink
+- **GPU object compact rendering**: Objects with `__type` + `__id` fields (from serialized GPU objects) render as a one-line linked summary: `GPUTextureView "label" [tv_3]` instead of expanding full JSON
+- **No circular reference detection**: Removed WeakSet (caused false positives from React re-renders). MAX_DEPTH=10 is sufficient. See capture-engine.md for rationale.
+- **Bulk field filtering**: Applied by ResourceDetail before passing to JsonTree — strips `dataBase64`, `code`, `previewDataUrl`, `facePreviewUrls`
 
 ### CommandTreeBuilder (`src/core/capture/commandTree.ts`)
 - `popScope()` must validate the scope stack is not empty — log a warning on underflow instead of returning silent `undefined`. Helps debug mismatched begin/end spy events.
