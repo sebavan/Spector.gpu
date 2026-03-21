@@ -10,6 +10,7 @@ import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
+import { Material } from '@babylonjs/core/Materials/material';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -118,8 +119,21 @@ export default function BufferMeshViewer({
     useEffect(() => {
         const mat = materialRef.current;
         if (!mat) return;
-        mat.wireframe = renderMode === 'wireframe';
-        mat.pointsCloud = renderMode === 'points';
+        switch (renderMode) {
+            case 'wireframe':
+                mat.fillMode = Material.WireFrameFillMode;
+                mat.pointsCloud = false;
+                break;
+            case 'solid':
+                mat.fillMode = Material.TriangleFillMode;
+                mat.pointsCloud = false;
+                break;
+            case 'points':
+                mat.fillMode = Material.TriangleFillMode;
+                mat.pointsCloud = true;
+                mat.pointSize = 3;
+                break;
+        }
     }, [renderMode]);
 
     const handleResetCamera = () => {
@@ -243,7 +257,7 @@ function createMeshFromVertexData(
     vd.applyToMesh(mesh);
 
     const mat = new StandardMaterial('wireMat', scene);
-    mat.wireframe = true;
+    mat.fillMode = Material.WireFrameFillMode;
     mat.emissiveColor = new Color3(0.31, 0.76, 0.97);
     mat.disableLighting = true;
     mesh.material = mat;
