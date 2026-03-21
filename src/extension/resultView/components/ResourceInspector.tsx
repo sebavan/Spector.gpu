@@ -1,6 +1,7 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import type { ICapture, IResourceMap } from '@shared/types';
 import { resolveMapToRecord } from '../resourceMapHelpers';
+import { buildUsageIndex } from '../usageIndex';
 import type { NavigationTarget } from './NavigationContext';
 import { ResourceDetail, detectShaderStages } from './ResourceDetail';
 
@@ -39,6 +40,8 @@ export function ResourceInspector({ capture, navTarget }: { capture: ICapture; n
     );
     const resourceIds = Object.keys(currentResources);
     const selectedResource = selectedId != null ? currentResources[selectedId] ?? null : null;
+
+    const usageIndex = useMemo(() => buildUsageIndex(capture), [capture]);
 
     const handleCategoryChange = useCallback((key: ResourceCategory) => {
         setSelectedCategory(key);
@@ -93,6 +96,8 @@ export function ResourceInspector({ capture, navTarget }: { capture: ICapture; n
                             category={selectedCategory}
                             resource={selectedResource}
                             capture={capture}
+                            usageIndex={usageIndex}
+                            resourceId={selectedId}
                         />
                     ) : (
                         <div className="empty">Select a resource to view details</div>

@@ -10,6 +10,7 @@ import { SidebarPanel } from './SidebarPanel';
 import { DraggableDivider } from './DraggableDivider';
 import { ResourceDetail } from './ResourceDetail';
 import { resolveMapToRecord } from '../resourceMapHelpers';
+import { buildUsageIndex } from '../usageIndex';
 
 type CommandTab = 'detail' | 'shader' | 'pipeline';
 type SidebarMode = 'commands' | 'resources';
@@ -211,6 +212,11 @@ export function ResultApp() {
         return record[selectedResourceId] ?? null;
     }, [capture, selectedResourceCategory, selectedResourceId]);
 
+    const usageIndex = useMemo(() => {
+        if (!capture) return new Map<string, never[]>();
+        return buildUsageIndex(capture);
+    }, [capture]);
+
     if (loading) {
         return <div className="loading">Loading capture…</div>;
     }
@@ -265,6 +271,8 @@ export function ResultApp() {
                                     category={selectedResourceCategory ?? ''}
                                     resource={selectedResource}
                                     capture={capture}
+                                    usageIndex={usageIndex}
+                                    resourceId={selectedResourceId}
                                 />
                             </div>
                         )}

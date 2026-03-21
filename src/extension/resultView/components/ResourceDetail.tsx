@@ -1,5 +1,6 @@
 import React from 'react';
 import type { IBufferInfo, ICapture, ICommandNode, IShaderModuleInfo, ITextureInfo, ITextureViewInfo } from '@shared/types';
+import type { UsageEntry } from '../usageIndex';
 import { resolveMapEntry } from '../resourceMapHelpers';
 import { highlightWGSL } from './wgslHighlighter';
 import { JsonTree } from './JsonTree';
@@ -230,21 +231,59 @@ function filterBulkFields(data: unknown): unknown {
     return out;
 }
 
+// ── Used-by cross-reference section ───────────────────────────────────
+
+function UsedBySection({ resourceId, usageIndex }: { resourceId: string; usageIndex: Map<string, UsageEntry[]> }) {
+    const usages = usageIndex.get(resourceId);
+    if (!usages || usages.length === 0) return null;
+
+    const commands = usages.filter(u => u.type === 'command');
+    const resources = usages.filter(u => u.type === 'resource');
+
+    return (
+        <div className="used-by-section">
+            <h4>Used By</h4>
+            <div className="used-by-list">
+                {resources.map((u, i) => (
+                    <div key={`r-${i}`} className="used-by-item">
+                        <ResourceLink id={u.id} />
+                        <span className="used-by-label">{u.label}</span>
+                    </div>
+                ))}
+                {commands.map((u, i) => (
+                    <div key={`c-${i}`} className="used-by-item">
+                        <span className="used-by-cmd">{u.label}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 // ── Unified resource detail panel ─────────────────────────────────────
 
 interface ResourceDetailProps {
     category: string;
     resource: unknown;
     capture: ICapture;
+    usageIndex: Map<string, UsageEntry[]>;
+    resourceId: string | null;
 }
 
-export function ResourceDetail({ category, resource, capture }: ResourceDetailProps) {
+export function ResourceDetail({ category, resource, capture, usageIndex, resourceId }: ResourceDetailProps) {
     if (!resource) {
         return <div className="empty">Select a resource to view details</div>;
     }
 
+    const rid = resourceId ?? (resource as Record<string, unknown>).id as string ?? '';
+
     if (category === 'shaderModules') {
-        return <ShaderModuleDetail module={resource as IShaderModuleInfo} />;
+        return (
+            <>
+                <ShaderModuleDetail module={resource as IShaderModuleInfo} />
+                <UsedBySection resourceId={rid} usageIndex={usageIndex} />
+            </>
+        );
     }
 
     if (category === 'textures') {
@@ -252,17 +291,33 @@ export function ResourceDetail({ category, resource, capture }: ResourceDetailPr
             <>
                 <TextureThumbnail texture={resource as ITextureInfo} capture={capture} />
                 <JsonTree data={filterBulkFields(resource)} />
+                <UsedBySection resourceId={rid} usageIndex={usageIndex} />
             </>
         );
     }
 
     if (category === 'textureViews') {
-        return <TextureViewDetail view={resource as ITextureViewInfo} capture={capture} />;
+        return (
+            <>
+                <TextureViewDetail view={resource as ITextureViewInfo} capture={capture} />
+                <UsedBySection resourceId={rid} usageIndex={usageIndex} />
+            </>
+        );
     }
 
     if (category === 'buffers') {
-        return <BufferDetail buffer={resource as IBufferInfo} capture={capture} />;
+        return (
+            <>
+                <BufferDetail buffer={resource as IBufferInfo} capture={capture} />
+                <UsedBySection resourceId={rid} usageIndex={usageIndex} />
+            </>
+        );
     }
 
-    return <JsonTree data={filterBulkFields(resource)} />;
+    return (
+        <>
+            <JsonTree data={filterBulkFields(resource)} />
+            <UsedBySection resourceId={rid} usageIndex={usageIndex} />
+        </>
+    );
 }
