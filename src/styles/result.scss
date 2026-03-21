@@ -160,6 +160,13 @@ body {
     flex: 1;
     overflow-y: auto;
     padding: 16px;
+    min-height: 0;
+
+    // When showing buffer detail, don't scroll the outer container —
+    // let the inner data panels handle their own scrolling.
+    &:has(.buffer-detail) {
+        overflow-y: hidden;
+    }
 }
 
 // ─── Command tree ────────────────────────────────────────────────────
@@ -1066,12 +1073,18 @@ $gutter-width: 48px;
 // ─── Hex dump ────────────────────────────────────────────────────────
 
 .hex-dump-section {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+
     h4 {
         font-size: 11px;
         text-transform: uppercase;
         color: $text-muted;
         margin-bottom: 6px;
         letter-spacing: 0.5px;
+        flex-shrink: 0;
     }
 }
 
@@ -1182,12 +1195,18 @@ $gutter-width: 48px;
 // ─── Vertex data table ───────────────────────────────────────────────
 
 .vertex-table-section {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+
     h4 {
         font-size: 11px;
         text-transform: uppercase;
         color: $text-muted;
         margin-bottom: 6px;
         letter-spacing: 0.5px;
+        flex-shrink: 0;
     }
 }
 
