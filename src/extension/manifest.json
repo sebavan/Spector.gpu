@@ -9,9 +9,6 @@
         "unlimitedStorage",
         "scripting"
     ],
-    "content_security_policy": {
-        "extension_pages": "script-src 'self' 'unsafe-eval'; object-src 'self'"
-    },
     "host_permissions": [
         "http://*/*",
         "https://*/*",
