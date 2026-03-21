@@ -131,6 +131,48 @@ if exp === 0x1F: Inf or NaN
 else: (sign ? -1 : 1) * 2^(exp-15) * (1 + mant/1024)
 ```
 
+## Argument Serialization
+
+`serializeDescriptor(obj, idResolver?)` converts WebGPU call arguments to JSON-safe objects for storage in `ICommandNode.args`.
+
+### IdResolver
+An optional callback `(obj: object) => string | undefined` that resolves GPU objects to their tracked resource IDs. Passed from `SpectorGPU._idResolver` which delegates to `RecorderManager.getId()`.
+
+### GPU Object Serialization
+When `isGPUObject(obj)` returns true (constructor name starts with "GPU"), the serializer produces:
+```json
+{ "__type": "GPUTextureView", "label": "myDepthView", "__id": "tv_3" }
+```
+- `__type`: constructor name (GPUTexture, GPURenderPipeline, GPUBuffer, etc.)
+- `label`: the WebGPU debug label if present
+- `__id`: the tracking ID from RecorderManager (only present if idResolver is provided and the object is tracked)
+
+Without `__id`, GPU objects in command args render as dead text. With it, they render as clickable ResourceLinks in the UI.
+
+### Where IdResolver is Passed
+All command recording paths pass `this._idResolver`:
+- `beginRenderPass` descriptor (color/depth attachment views become clickable)
+- `beginComputePass` descriptor
+- Encoder commands (`copyTextureToBuffer` src/dst → clickable)
+- Render pass commands (`setPipeline`, `setBindGroup`, `setVertexBuffer` → clickable)
+- Compute pass commands (`setPipeline`, `setBindGroup` → clickable)
+
+### Bulk Field Filtering
+The UI strips these fields before passing to JsonTree (they have dedicated viewers):
+- `dataBase64` — shown in hex dump
+- `code` — shown in shader editor
+- `previewDataUrl` — shown as image preview
+- `facePreviewUrls` — shown as cube face grid
+
+### JsonTree GPU Object Rendering
+When JsonTree encounters an object with `__type` + `__id`, it renders a compact linked summary instead of expanding the full JSON:
+```
+view: GPUTextureView "myDepthView" [tv_3]  ← clickable link
+```
+
+### No Circular Reference Detection in JsonTree
+Capture data is serialized JSON — no actual circular references after `captureToJSON()`. The `MAX_DEPTH=10` limit provides sufficient protection against deep nesting. Previous `WeakSet`-based detection caused false positives (sibling objects incorrectly marked as `[Circular]` due to mutable WeakSet shared across React re-renders).
+
 ## Canvas Screenshot
 
 Captured during `queue.submit` (back buffer still valid):
