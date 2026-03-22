@@ -40,6 +40,32 @@ function* iterateMap<T>(
     }
 }
 
+/**
+ * Recursively collect all `__id` string values from a serialized args tree.
+ * GPU objects are serialized as `{ __type: "GPUBuffer", __id: "buf_0" }` —
+ * this walks the full object/array tree to find every such reference.
+ */
+function collectIds(obj: unknown, out: string[]): void {
+    if (obj === null || obj === undefined || typeof obj !== 'object') return;
+    if (Array.isArray(obj)) {
+        for (let i = 0; i < obj.length; i++) {
+            collectIds(obj[i], out);
+        }
+        return;
+    }
+    const record = obj as Record<string, unknown>;
+    if (typeof record.__id === 'string' && record.__id.length > 0) {
+        out.push(record.__id);
+    }
+    const keys = Object.keys(record);
+    for (let i = 0; i < keys.length; i++) {
+        const val = record[keys[i]];
+        if (val !== null && typeof val === 'object') {
+            collectIds(val, out);
+        }
+    }
+}
+
 /** Append to the index, deduplicating by id+type within a target. */
 function addEntry(
     index: Map<string, UsageEntry[]>,
@@ -56,38 +82,6 @@ function addEntry(
         if (list[i].id === entry.id && list[i].type === entry.type) return;
     }
     list.push(entry);
-}
-
-// ─── Deep arg scanning ───────────────────────────────────────────────
-
-/**
- * Recursively walk a serialized args value and invoke `cb` for every
- * `__id` string found.  Serialized GPU objects have the shape
- * `{ __type: "GPUBuffer", __id: "buf_0", label?: "..." }` and may be
- * nested at arbitrary depth inside arrays or plain objects.
- */
-function collectIds(value: unknown, cb: (id: string) => void): void {
-    if (value === null || value === undefined || typeof value !== 'object') return;
-
-    if (Array.isArray(value)) {
-        for (let i = 0; i < value.length; i++) {
-            collectIds(value[i], cb);
-        }
-        return;
-    }
-
-    const obj = value as Record<string, unknown>;
-    const id = obj['__id'];
-    if (typeof id === 'string' && id.length > 0) {
-        cb(id);
-    }
-    const keys = Object.keys(obj);
-    for (let k = 0; k < keys.length; k++) {
-        const v = obj[keys[k]];
-        if (v !== null && typeof v === 'object') {
-            collectIds(v, cb);
-        }
-    }
 }
 
 // ─── Command tree scan ───────────────────────────────────────────────
@@ -117,9 +111,13 @@ function scanCommands(
             }
         }
 
-        // Deep-scan args for __id fields at any nesting depth
+        // Deep-scan args for __id fields (serialized GPU object references)
         if (node.args) {
-            collectIds(node.args, (id) => addEntry(index, id, entry));
+            const ids: string[] = [];
+            collectIds(node.args, ids);
+            for (let a = 0; a < ids.length; a++) {
+                addEntry(index, ids[a], entry);
+            }
         }
 
         if (node.children.length > 0) {

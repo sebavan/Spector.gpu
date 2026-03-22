@@ -4,7 +4,7 @@ import type { UsageEntry } from '../usageIndex';
 import { resolveMapEntry } from '../resourceMapHelpers';
 import { highlightWGSL } from './wgslHighlighter';
 import { JsonTree } from './JsonTree';
-import { ResourceLink } from './ResourceLink';
+import { ResourceLink, CommandLink } from './ResourceLink';
 import { BufferDetail } from './BufferDetail';
 
 // ── Detect shader stages from WGSL source ─────────────────────────────
@@ -233,7 +233,7 @@ function filterBulkFields(data: unknown): unknown {
 
 // ── Used-by cross-reference section ───────────────────────────────────
 
-function UsedBySection({ resourceId, usageIndex }: { resourceId: string; usageIndex: Map<string, UsageEntry[]> }) {
+export function UsedBySection({ resourceId, usageIndex }: { resourceId: string; usageIndex: Map<string, UsageEntry[]> }) {
     const usages = usageIndex.get(resourceId);
     if (!usages || usages.length === 0) return null;
 
@@ -252,7 +252,7 @@ function UsedBySection({ resourceId, usageIndex }: { resourceId: string; usageIn
                 ))}
                 {commands.map((u, i) => (
                     <div key={`c-${i}`} className="used-by-item">
-                        <span className="used-by-cmd">{u.label}</span>
+                        <CommandLink id={u.id} label={u.label} />
                     </div>
                 ))}
             </div>

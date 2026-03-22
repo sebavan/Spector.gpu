@@ -244,4 +244,58 @@ describe('buildUsageIndex', () => {
         const index = buildUsageIndex(emptyCapture([cmd]));
         expect(index.size).toBe(0);
     });
+
+    it('finds buffer __id in queue.writeBuffer args', () => {
+        const cmd = makeCommand({
+            id: 'cmd_6',
+            name: 'queue.writeBuffer',
+            args: {
+                args: [
+                    { __type: 'GPUBuffer', __id: 'buf_3', label: 'uniform' },
+                    0,
+                    { __type: 'ArrayBuffer' },
+                    0,
+                    64,
+                ],
+            },
+        });
+        const index = buildUsageIndex(emptyCapture([cmd]));
+
+        expect(index.get('buf_3')).toEqual([
+            { id: 'cmd_6', label: 'queue.writeBuffer', type: 'command' },
+        ]);
+    });
+
+    it('aggregates buffer references from commands, bind groups, and args', () => {
+        // buf_0 is referenced 3 ways: vertex buffer state, bind group entry, writeBuffer args
+        const drawCmd = makeCommand({
+            id: 'draw_0',
+            name: 'draw',
+            vertexBuffers: ['buf_0'],
+        });
+        const writeCmd = makeCommand({
+            id: 'write_0',
+            name: 'queue.writeBuffer',
+            args: {
+                args: [
+                    { __type: 'GPUBuffer', __id: 'buf_0' },
+                    0,
+                    { __type: 'ArrayBuffer' },
+                ],
+            },
+        });
+        const capture = emptyCapture([drawCmd, writeCmd]);
+        (capture.resources.bindGroups as Map<string, any>).set('bg_0', {
+            id: 'bg_0',
+            entries: [{ binding: 0, resourceType: 'buffer', resourceId: 'buf_0' }],
+        });
+        const index = buildUsageIndex(capture);
+
+        const usages = index.get('buf_0')!;
+        expect(usages).toBeDefined();
+        expect(usages).toHaveLength(3);
+        expect(usages).toContainEqual({ id: 'draw_0', label: 'draw', type: 'command' });
+        expect(usages).toContainEqual({ id: 'write_0', label: 'queue.writeBuffer', type: 'command' });
+        expect(usages).toContainEqual(expect.objectContaining({ id: 'bg_0', type: 'resource' }));
+    });
 });

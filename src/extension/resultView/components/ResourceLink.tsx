@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigateToResource, type ResourceCategory } from './NavigationContext';
+import { useNavigateToResource, useNavigateToCommand, type ResourceCategory } from './NavigationContext';
 
 /**
  * Map resource-ID prefixes to their ResourceCategory.
@@ -69,4 +69,22 @@ export function maybeResourceLink(value: string): React.ReactElement | null {
         return <ResourceLink id={value} />;
     }
     return null;
+}
+
+/**
+ * Clickable command label that navigates to the command in the Commands tab.
+ */
+export function CommandLink({ id, label }: { id: string; label: string }) {
+    const navigate = useNavigateToCommand();
+
+    const handleClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        navigate(id);
+    };
+
+    return (
+        <span className="resource-link" onClick={handleClick} title={`Go to ${label}`}>
+            {label}
+        </span>
+    );
 }

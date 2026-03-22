@@ -28,17 +28,17 @@ ResultApp
     │   ├── ShaderEditor (toolbar + dual-layer editor: transparent textarea over highlighted pre)
     │   └── PipelineInspector (vertex/fragment/compute stages, primitive, depth/stencil, layout)
     └── [Resources mode] ResourceDetail (dispatches by category)
-        ├── [buffers] BufferDetail
+        ├── [buffers] BufferDetail + UsedBySection
         │   ├── buffer-info-grid (ID, label, size, usage flags, state)
         │   ├── BufferMeshViewer (lazy Babylon.js, vertex buffers only)
         │   └── HexDump (address | hex | ascii, max 2KB display)
-        ├── [textures] TextureThumbnail + JsonTree
+        ├── [textures] TextureThumbnail + JsonTree + UsedBySection
         │   ├── preview img (previewDataUrl or canvas screenshot for isCanvasTexture)
         │   ├── CubeFaceGrid (3×2 labeled grid for facePreviewUrls)
         │   └── texture-info-grid (format, dimension, size, mips, samples, usage)
-        ├── [textureViews] TextureViewDetail (lookup parent texture → TextureThumbnail + view JsonTree)
-        ├── [shaderModules] ShaderModuleDetail (header + code container + compilation messages)
-        └── [*] JsonTree (collapsible JSON viewer)
+        ├── [textureViews] TextureViewDetail + UsedBySection
+        ├── [shaderModules] ShaderModuleDetail + UsedBySection
+        └── [*] JsonTree + UsedBySection
 ```
 
 ## Component Details
@@ -128,6 +128,25 @@ buffer-detail (flex column, height:100%)
 - Clickable resource ID that navigates to the resource via NavigationContext
 - Dotted underline, accent color on hover
 
+### CommandLink (`ResourceLink.tsx`)
+- Clickable command label that navigates to a command node via CommandNavigationContext
+- Switches sidebar to Commands mode, selects the command, and pushes browser history
+- Reuses `.resource-link` CSS class for consistent visual styling
+
+### UsedBySection (`ResourceDetail.tsx`)
+- Reverse cross-reference list: shows all commands and resources that reference the current resource
+- Rendered on **every** resource type: buffers, textures, texture views, shader modules, pipelines, bind groups, etc.
+- Resources rendered as `<ResourceLink>` + label; commands rendered as `<CommandLink>`
+- Hidden (returns null) when no usages exist
+- Data sourced from `buildUsageIndex()` — an O(n) reverse-lookup map built once per capture
+
+### Usage Index (`usageIndex.ts`)
+- `buildUsageIndex(capture)` scans the full command tree and resource graph, producing a `Map<string, UsageEntry[]>` — resource-id → list of referrers
+- **Command scan** tracks: `pipelineId`, `indexBufferId`, `vertexBuffers[]`, `bindGroups[]`, plus deep `__id` extraction from serialized args (handles `writeBuffer`, `copyBufferToBuffer`, `beginRenderPass` descriptors, etc.)
+- **Resource scan** tracks: render/compute pipeline → shader modules, bind group → buffer/texture/sampler entries, texture view → parent texture, pipeline → layout
+- Deep `__id` scan: `collectIds()` recursively walks the full args object/array tree to find all serialized GPU object references (`{ __type, __id }`)
+- Deduplicates entries: same referrer (id + type) appears at most once per target
+
 ### ShaderEditor (`ShaderEditor.tsx`)
 - Dual-layer architecture: transparent `<textarea>` over highlighted `<pre>` (pixel-aligned)
 - Line-number gutter (48px) with current-line highlight
@@ -170,3 +189,7 @@ interface NavigationTarget {
     readonly id: string;
 }
 ```
+
+ResourceNavigationContext: `navigateToResource(target)` switches sidebar to resources mode and selects the target. Used by `ResourceLink`.
+
+CommandNavigationContext: `navigateToCommand(commandId)` finds the command node by DFS, switches sidebar to commands mode, selects the node, and pushes browser history. Used by `CommandLink`.
