@@ -1,6 +1,7 @@
 import React, { useMemo, Suspense } from 'react';
 import type { IBufferInfo, ICapture, ICommandNode, IVertexBufferLayout } from '@shared/types';
 import { resolveMapEntry } from '../resourceMapHelpers';
+import { ResourceLink } from './ResourceLink';
 
 // Babylon.js is lazy-loaded to avoid crashing the page if the engine
 // fails to initialize (e.g. Manifest V3 CSP blocking eval/Function).
@@ -186,7 +187,7 @@ export function BufferDetail({ buffer, capture }: BufferDetailProps) {
         <div className="buffer-detail">
             <div className="buffer-info-grid">
                 <span className="buf-label">ID:</span>
-                <span className="buf-value">{buffer.id}</span>
+                <span className="buf-value"><ResourceLink id={buffer.id} /></span>
                 {buffer.label && (
                     <>
                         <span className="buf-label">Label:</span>

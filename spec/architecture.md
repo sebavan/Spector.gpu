@@ -57,8 +57,10 @@ A Chrome extension for capturing and inspecting WebGPU frames. Think RenderDoc/S
 │      │   ├─ TextureViewDetail→ parent texture lookup     │
 │      │   └─ BufferDetail     → info + hex dump + 3D view │
 │      │       └─ BufferMeshViewer (lazy) → Babylon.js     │
+│      ├─ UsedBySection      → reverse cross-ref list      │
 │      ├─ JsonTree           → collapsible JSON viewer      │
-│      └─ ResourceLink       → clickable cross-references  │
+│      ├─ ResourceLink       → clickable resource xrefs    │
+│      └─ CommandLink        → clickable command xrefs     │
 └──────────────────────────────────────────────────────────┘
 ```
 

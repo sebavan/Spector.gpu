@@ -5,11 +5,12 @@ import { CommandDetail } from './CommandDetail';
 import { ShaderEditor } from './ShaderEditor';
 import { PipelineInspector } from './PipelineInspector';
 import { CaptureHeader } from './CaptureHeader';
-import { NavigationContext, type NavigationTarget, type ResourceCategory } from './NavigationContext';
+import { NavigationContext, CommandNavigationContext, type NavigationTarget, type ResourceCategory } from './NavigationContext';
 import { SidebarPanel } from './SidebarPanel';
 import { DraggableDivider } from './DraggableDivider';
 import { ResourceDetail } from './ResourceDetail';
 import { resolveMapToRecord } from '../resourceMapHelpers';
+import { buildUsageIndex } from '../usageIndex';
 
 type CommandTab = 'detail' | 'shader' | 'pipeline';
 type SidebarMode = 'commands' | 'resources';
@@ -109,6 +110,22 @@ export function ResultApp() {
             resourceId: target.id,
         });
     }, [pushHistory]);
+
+    const navigateToCommand = useCallback((commandId: string) => {
+        if (!capture) return;
+        const node = findNodeById(capture.commands, commandId);
+        if (!node) return;
+        setSidebarMode('commands');
+        setSelectedNode(node);
+        setActiveTab('detail');
+        pushHistory({
+            mode: 'commands',
+            commandId: node.id,
+            tab: 'detail',
+            resourceCategory: selectedResourceCategory,
+            resourceId: selectedResourceId,
+        });
+    }, [capture, pushHistory, selectedResourceCategory, selectedResourceId]);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -211,6 +228,11 @@ export function ResultApp() {
         return record[selectedResourceId] ?? null;
     }, [capture, selectedResourceCategory, selectedResourceId]);
 
+    const usageIndex = useMemo(() => {
+        if (!capture) return new Map<string, never[]>();
+        return buildUsageIndex(capture);
+    }, [capture]);
+
     if (loading) {
         return <div className="loading">Loading capture…</div>;
     }
@@ -226,6 +248,7 @@ export function ResultApp() {
 
     return (
         <NavigationContext.Provider value={navigateToResource}>
+        <CommandNavigationContext.Provider value={navigateToCommand}>
             <div className="result-app">
                 <CaptureHeader capture={capture} />
                 <div className="result-content">
@@ -265,12 +288,15 @@ export function ResultApp() {
                                     category={selectedResourceCategory ?? ''}
                                     resource={selectedResource}
                                     capture={capture}
+                                    usageIndex={usageIndex}
+                                    resourceId={selectedResourceId}
                                 />
                             </div>
                         )}
                     </div>
                 </div>
             </div>
+        </CommandNavigationContext.Provider>
         </NavigationContext.Provider>
     );
 }

@@ -1,10 +1,9 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import type { ICapture, IResourceMap } from '@shared/types';
 import { resolveMapToRecord } from '../resourceMapHelpers';
-import { JsonTree } from './JsonTree';
+import { buildUsageIndex } from '../usageIndex';
 import type { NavigationTarget } from './NavigationContext';
-import { ShaderModuleDetail, TextureThumbnail, TextureViewDetail, detectShaderStages } from './ResourceDetail';
-import type { IShaderModuleInfo, ITextureInfo, ITextureViewInfo } from '@shared/types';
+import { ResourceDetail, detectShaderStages } from './ResourceDetail';
 
 /** All resource categories present in IResourceMap. */
 type ResourceCategory = keyof IResourceMap;
@@ -41,6 +40,8 @@ export function ResourceInspector({ capture, navTarget }: { capture: ICapture; n
     );
     const resourceIds = Object.keys(currentResources);
     const selectedResource = selectedId != null ? currentResources[selectedId] ?? null : null;
+
+    const usageIndex = useMemo(() => buildUsageIndex(capture), [capture]);
 
     const handleCategoryChange = useCallback((key: ResourceCategory) => {
         setSelectedCategory(key);
@@ -90,17 +91,14 @@ export function ResourceInspector({ capture, navTarget }: { capture: ICapture; n
                     )}
                 </div>
                 <div className="resource-detail">
-                    {selectedCategory === 'shaderModules' && selectedResource ? (
-                        <ShaderModuleDetail module={selectedResource as IShaderModuleInfo} />
-                    ) : selectedCategory === 'textures' && selectedResource ? (
-                        <>
-                            <TextureThumbnail texture={selectedResource as ITextureInfo} capture={capture} />
-                            <JsonTree data={selectedResource} />
-                        </>
-                    ) : selectedCategory === 'textureViews' && selectedResource ? (
-                        <TextureViewDetail view={selectedResource as ITextureViewInfo} capture={capture} />
-                    ) : selectedResource ? (
-                        <JsonTree data={selectedResource} />
+                    {selectedResource ? (
+                        <ResourceDetail
+                            category={selectedCategory}
+                            resource={selectedResource}
+                            capture={capture}
+                            usageIndex={usageIndex}
+                            resourceId={selectedId}
+                        />
                     ) : (
                         <div className="empty">Select a resource to view details</div>
                     )}

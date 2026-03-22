@@ -28,7 +28,7 @@ export function PipelineInspector({ node, capture }: { node: ICommandNode | null
 
     return (
         <div className="pipeline-inspector">
-            <h3>Pipeline: {pipeline.label ?? pipeline.id}</h3>
+            <h3>Pipeline: <ResourceLink id={pipeline.id} /> {pipeline.label && `— ${pipeline.label}`}</h3>
             <div className="pipeline-sections">
                 {isRender && (
                     <>
@@ -72,13 +72,22 @@ function PipelineSection({ title, data }: { title: string; data: unknown }) {
 
 /**
  * Pipeline stage section that displays the module ID as a clickable link
- * above the full stage data rendered via JsonTree.
+ * above the stage data rendered via JsonTree.
+ *
+ * Strips `moduleId` from the data before rendering — it's already shown as
+ * a navigable link in the heading, so repeating it in the JSON tree is pure noise.
  */
 function PipelineStageSection({ title, moduleId, data }: { title: string; moduleId: string; data: unknown }) {
+    const filteredData = useMemo(() => {
+        if (!data || typeof data !== 'object') return data;
+        const { moduleId: _, ...rest } = data as Record<string, unknown>;
+        return rest;
+    }, [data]);
+
     return (
         <div className="pipeline-section">
             <h4>{title} — <ResourceLink id={moduleId} /></h4>
-            <JsonTree data={data} />
+            <JsonTree data={filteredData} />
         </div>
     );
 }

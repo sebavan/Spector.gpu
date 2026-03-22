@@ -28,17 +28,17 @@ ResultApp
     │   ├── ShaderEditor (toolbar + dual-layer editor: transparent textarea over highlighted pre)
     │   └── PipelineInspector (vertex/fragment/compute stages, primitive, depth/stencil, layout)
     └── [Resources mode] ResourceDetail (dispatches by category)
-        ├── [buffers] BufferDetail
+        ├── [buffers] BufferDetail + UsedBySection
         │   ├── buffer-info-grid (ID, label, size, usage flags, state)
         │   ├── BufferMeshViewer (lazy Babylon.js, vertex buffers only)
         │   └── HexDump (address | hex | ascii, max 2KB display)
-        ├── [textures] TextureThumbnail + JsonTree
+        ├── [textures] TextureThumbnail + JsonTree + UsedBySection
         │   ├── preview img (previewDataUrl or canvas screenshot for isCanvasTexture)
         │   ├── CubeFaceGrid (3×2 labeled grid for facePreviewUrls)
         │   └── texture-info-grid (format, dimension, size, mips, samples, usage)
-        ├── [textureViews] TextureViewDetail (lookup parent texture → TextureThumbnail + view JsonTree)
-        ├── [shaderModules] ShaderModuleDetail (header + code container + compilation messages)
-        └── [*] JsonTree (collapsible JSON viewer)
+        ├── [textureViews] TextureViewDetail + UsedBySection
+        ├── [shaderModules] ShaderModuleDetail + UsedBySection
+        └── [*] JsonTree + UsedBySection
 ```
 
 ## Component Details
@@ -114,10 +114,12 @@ buffer-detail (flex column, height:100%)
 ```
 
 ### JsonTree (`JsonTree.tsx`)
-- Recursive collapsible JSON viewer
+- Recursive collapsible JSON viewer, max depth 10
 - Color-coded: keys (#9cdcfe), strings (#ce9178), numbers (#b5cea8), booleans (#569cd6), null (#808080)
-- Resource IDs rendered as clickable ResourceLinks
-- **Circular reference detection** — passes `WeakSet<object>` through `visited` prop. Objects already in the set render as `[Circular]` instead of recursing infinitely.
+- **Auto-links resource IDs**: `maybeResourceLink(value)` checks if a string matches `^(buf|tex|tv|smp|shd|rp|cp|bg|bgl)_\d+$` — if yes, renders as clickable ResourceLink
+- **GPU object compact rendering**: Objects with `__type` + `__id` fields (from serialized GPU objects) render as a one-line linked summary: `GPUTextureView "label" [tv_3]` instead of expanding full JSON
+- **No circular reference detection**: Removed WeakSet (caused false positives from React re-renders). MAX_DEPTH=10 is sufficient. See capture-engine.md for rationale.
+- **Bulk field filtering**: Applied by ResourceDetail before passing to JsonTree — strips `dataBase64`, `code`, `previewDataUrl`, `facePreviewUrls`
 
 ### CommandTreeBuilder (`src/core/capture/commandTree.ts`)
 - `popScope()` must validate the scope stack is not empty — log a warning on underflow instead of returning silent `undefined`. Helps debug mismatched begin/end spy events.
@@ -125,6 +127,25 @@ buffer-detail (flex column, height:100%)
 ### ResourceLink (`ResourceLink.tsx`)
 - Clickable resource ID that navigates to the resource via NavigationContext
 - Dotted underline, accent color on hover
+
+### CommandLink (`ResourceLink.tsx`)
+- Clickable command label that navigates to a command node via CommandNavigationContext
+- Switches sidebar to Commands mode, selects the command, and pushes browser history
+- Reuses `.resource-link` CSS class for consistent visual styling
+
+### UsedBySection (`ResourceDetail.tsx`)
+- Reverse cross-reference list: shows all commands and resources that reference the current resource
+- Rendered on **every** resource type: buffers, textures, texture views, shader modules, pipelines, bind groups, etc.
+- Resources rendered as `<ResourceLink>` + label; commands rendered as `<CommandLink>`
+- Hidden (returns null) when no usages exist
+- Data sourced from `buildUsageIndex()` — an O(n) reverse-lookup map built once per capture
+
+### Usage Index (`usageIndex.ts`)
+- `buildUsageIndex(capture)` scans the full command tree and resource graph, producing a `Map<string, UsageEntry[]>` — resource-id → list of referrers
+- **Command scan** tracks: `pipelineId`, `indexBufferId`, `vertexBuffers[]`, `bindGroups[]`, plus deep `__id` extraction from serialized args (handles `writeBuffer`, `copyBufferToBuffer`, `beginRenderPass` descriptors, etc.)
+- **Resource scan** tracks: render/compute pipeline → shader modules, bind group → buffer/texture/sampler entries, texture view → parent texture, pipeline → layout
+- Deep `__id` scan: `collectIds()` recursively walks the full args object/array tree to find all serialized GPU object references (`{ __type, __id }`)
+- Deduplicates entries: same referrer (id + type) appears at most once per target
 
 ### ShaderEditor (`ShaderEditor.tsx`)
 - Dual-layer architecture: transparent `<textarea>` over highlighted `<pre>` (pixel-aligned)
@@ -168,3 +189,7 @@ interface NavigationTarget {
     readonly id: string;
 }
 ```
+
+ResourceNavigationContext: `navigateToResource(target)` switches sidebar to resources mode and selects the target. Used by `ResourceLink`.
+
+CommandNavigationContext: `navigateToCommand(commandId)` finds the command node by DFS, switches sidebar to commands mode, selects the node, and pushes browser history. Used by `CommandLink`.
