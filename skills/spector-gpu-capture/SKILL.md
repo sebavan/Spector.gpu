@@ -75,7 +75,7 @@ The summary JSON contains:
 - **commandTree**: indented outline of the frame's command hierarchy (up to depth 3)
 - **textures**: list with format, size, usage flags, preview availability, cube detection
 - **buffers**: list with size, usage flags (VERTEX, INDEX, UNIFORM, etc.), data availability
-- **shaderModules**: list with line counts
+- **shaderModules**: list with full WGSL source code, line counts, and compilation messages
 - **pipelines**: render and compute pipeline IDs
 
 ## Example workflow
@@ -92,6 +92,8 @@ User: "Why is my WebGPU scene rendering slowly on https://myapp.com?"
    - Check buffer sizes (large vertex buffers suggest missing LOD)
    - Check render pass count (redundant passes waste GPU time)
    - Check shader module count and complexity
+   - Review WGSL shader source for performance anti-patterns (excessive branching, unrolled loops, unnecessary barriers)
+   - Check compilationInfo for warnings that may hint at issues
 
 3. Report findings and suggest optimizations
 ```
