@@ -77,4 +77,42 @@ describe('buildSummary', () => {
         expect(shader.compilationInfo).toHaveLength(1);
         expect(shader.compilationInfo[0].type).toBe('warning');
     });
+
+    it('includes buffer dataBase64 in summary output', () => {
+        const capture = makeCapture();
+        capture.resources.buffers = {
+            buf_1: {
+                id: 'buf_1',
+                label: 'uniform',
+                size: 8,
+                usage: 0x0044, // COPY_SRC | UNIFORM
+                state: 'unmapped',
+                dataBase64: 'AAAAAAAAAAA=',
+            },
+        };
+        const summary = JSON.parse(buildSummary(capture));
+
+        expect(summary.buffers).toHaveLength(1);
+        const buf = summary.buffers[0];
+        expect(buf.id).toBe('buf_1');
+        expect(buf.dataBase64).toBe('AAAAAAAAAAA=');
+        expect(buf.hasData).toBe(true);
+    });
+
+    it('omits dataBase64 when buffer has no data', () => {
+        const capture = makeCapture();
+        capture.resources.buffers = {
+            buf_2: {
+                id: 'buf_2',
+                size: 16,
+                usage: 0x0009, // MAP_READ | COPY_DST
+                state: 'unmapped',
+            },
+        };
+        const summary = JSON.parse(buildSummary(capture));
+
+        const buf = summary.buffers[0];
+        expect(buf.hasData).toBe(false);
+        expect(buf.dataBase64).toBeUndefined();
+    });
 });
