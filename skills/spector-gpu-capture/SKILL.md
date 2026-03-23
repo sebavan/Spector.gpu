@@ -64,7 +64,7 @@ node E:\spector-gpu\skills\spector-gpu-capture\capture-cli.js <URL> --summary --
 | `--timeout, -t <ms>` | Capture timeout | 30000 |
 | `--summary` | Output summary instead of full JSON | false |
 | `--textures` | Include texture preview data URLs | false |
-| `--buffers` | Include buffer base64 data | false |
+| `--buffers` | Include buffer base64 data in output (summary and full) | false |
 | `--headed` | Show browser window | false |
 
 ## Output format (--summary)
@@ -74,7 +74,7 @@ The summary JSON contains:
 - **stats**: command count, draw calls, dispatches, render/compute passes
 - **commandTree**: indented outline of the frame's command hierarchy (up to depth 3)
 - **textures**: list with format, size, usage flags, preview availability, cube detection
-- **buffers**: list with size, usage flags (VERTEX, INDEX, UNIFORM, etc.), data availability
+- **buffers**: list with size, usage flags (VERTEX, INDEX, UNIFORM, etc.), data availability, and base64 data (when `--buffers` is passed)
 - **shaderModules**: list with full WGSL source code, line counts, and compilation messages
 - **pipelines**: render and compute pipeline IDs
 
