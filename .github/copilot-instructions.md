@@ -64,6 +64,13 @@
 - Always run build (`npm run build`) AND tests before considering a task done.
 - When fixing bugs, verify the fix doesn't break the target page (use Playwright on localhost:5174 or playground.babylonjs.com).
 
+## Git Workflow (CRITICAL — NO EXCEPTIONS)
+- **NEVER push directly to main/master.** All changes MUST go through a pull request — no matter how small (including version bumps, one-line fixes, docs, config changes).
+- **NEVER use `--admin` or any flag to bypass branch protection or CI checks.** Always wait for CI to pass before merging.
+- Always create a feature branch: `git checkout -b feat/my-feature` or `fix/my-fix` or `chore/my-chore`.
+- Push the branch, open a PR, set auto-merge if desired, and **wait for CI**.
+- For releases: version bump goes through a PR. After CI passes and the PR is merged, pull main, then tag and push the tag.
+
 ## Coexistence
 - The CanvasSpy has a reentrancy guard for `getContext` — required because Babylon.js playground embeds Spector.js which also patches getContext.
 - Always test on playground.babylonjs.com to verify coexistence with embedded Spector.js.
