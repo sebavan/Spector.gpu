@@ -1,7 +1,7 @@
 {
   "name": "spector-gpu-skills",
   "description": "AI agent skills for capturing and debugging WebGPU frames with Spector.GPU",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "license": "MIT",
   "skills": ["skills/"]
 }
