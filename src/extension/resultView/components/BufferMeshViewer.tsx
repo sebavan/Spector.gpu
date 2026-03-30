@@ -84,7 +84,7 @@ export default function BufferMeshViewer({
                 const center = bounds.center;
                 const extent = bounds.extendSize.length();
                 camera.target = center;
-                camera.radius = extent * 2.5;
+                camera.radius = Math.max(extent * 1.5, 0.1);
 
                 const vertexCount = Math.floor(rawData.length / layout.arrayStride);
                 const min = bounds.minimumWorld;
@@ -148,9 +148,15 @@ export default function BufferMeshViewer({
 
     const handleResetCamera = () => {
         const cam = cameraRef.current;
+        const solid = solidMeshRef.current;
         if (!cam) return;
         cam.alpha = Math.PI / 4;
         cam.beta = Math.PI / 3;
+        if (solid) {
+            const bounds = solid.getBoundingInfo().boundingBox;
+            cam.target = bounds.center;
+            cam.radius = Math.max(bounds.extendSize.length() * 1.5, 0.1);
+        }
     };
 
     if (error) {
