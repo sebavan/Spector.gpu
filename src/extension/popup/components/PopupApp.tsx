@@ -114,7 +114,7 @@ export function PopupApp(): React.JSX.Element {
                     onClick={handleCapture}
                     type="button"
                 >
-                    {capturing ? '⏳ Capturing…' : '📸 Capture Frame'}
+                    {capturing ? 'Capturing…' : 'Capture Frame'}
                 </button>
 
                 {!detected && (
