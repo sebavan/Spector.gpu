@@ -1,0 +1,41 @@
+{
+  "id": "capture_test",
+  "version": "0.5.1",
+  "timestamp": 1000,
+  "duration": 100.5,
+  "adapterInfo": { "vendor": "nvidia", "architecture": "turing", "description": "" },
+  "commands": [
+    { "id": "cmd_0", "type": "renderPass", "name": "beginRenderPass", "args": {}, "children": [] }
+  ],
+  "resources": {
+    "buffers": {
+      "buf_1": { "id": "buf_1", "label": "vertex", "size": 1024, "usage": 44 },
+      "buf_2": { "id": "buf_2", "label": "uniform", "size": 64, "usage": 72 }
+    },
+    "textures": {
+      "tex_1": { "id": "tex_1", "label": "diffuse", "format": "rgba8unorm", "size": { "width": 256, "height": 256 } }
+    },
+    "textureViews": {
+      "tv_1": { "id": "tv_1", "textureId": "tex_1" }
+    },
+    "samplers": {
+      "smp_1": { "id": "smp_1" }
+    },
+    "shaderModules": {
+      "shd_1": { "id": "shd_1", "label": "vertex shader", "code": "@vertex fn main() {}" }
+    },
+    "renderPipelines": {
+      "rp_1": { "id": "rp_1", "label": "main pipeline" }
+    },
+    "computePipelines": {
+      "cp_1": { "id": "cp_1", "label": "compute" }
+    },
+    "bindGroups": {
+      "bg_1": { "id": "bg_1" }
+    },
+    "bindGroupLayouts": {
+      "bgl_1": { "id": "bgl_1" }
+    }
+  },
+  "stats": { "totalCommands": 1, "drawCalls": 0 }
+}
