@@ -38,6 +38,7 @@ import {
     ComputePassSpy,
     CanvasSpy,
 } from '@core/spies';
+import { selectBuffersForReadback } from '@core/readbackPriority';
 
 // ── Static lookup: WebGPU method name → CommandType ──────────────────
 // Pre-built, zero-alloc per command on the hot path.
@@ -930,6 +931,45 @@ export class SpectorGPU {
                 });
             }
         });
+
+        // ── Queue writeBuffer → capture buffer data at upload time ──
+        // Stores a copy of the data for every full-buffer write so that
+        // GPU readback is only needed for compute-generated data.
+
+        this._queueSpy.onWriteBuffer.add(({ args }) => {
+            const buffer = args[0] as object | undefined;
+            if (!buffer) return;
+
+            const bufferId = this._recorderManager.getId(buffer);
+            if (!bufferId) return;
+
+            const info = this._recorderManager.getBuffers().get(bufferId);
+            if (!info) return;
+
+            const bufferOffset = (args[1] as number) || 0;
+            const rawData = args[2] as ArrayBuffer | ArrayBufferView | undefined;
+            if (!rawData) return;
+
+            // Extract byte view from whatever source type was passed
+            let byteView: Uint8Array;
+            if (rawData instanceof ArrayBuffer) {
+                byteView = new Uint8Array(rawData);
+            } else if (ArrayBuffer.isView(rawData)) {
+                byteView = new Uint8Array(rawData.buffer, rawData.byteOffset, rawData.byteLength);
+            } else {
+                return;
+            }
+
+            const srcOffset = (args[3] as number) || 0;
+            const srcSize = (args[4] as number) ?? (byteView.length - srcOffset);
+            const written = byteView.subarray(srcOffset, srcOffset + srcSize);
+
+            // Only store full-buffer writes; partial writes rely on GPU readback
+            if (bufferOffset === 0 && written.length >= info.size) {
+                const base64 = uint8ArrayToBase64(written.subarray(0, info.size));
+                this._recorderManager.setBufferData(bufferId, base64);
+            }
+        });
     }
 
     // ── Pass state tracking ──────────────────────────────────────────
@@ -1066,7 +1106,7 @@ export class SpectorGPU {
     /** Timeout for the entire readback operation (ms). */
     private static readonly READBACK_TIMEOUT_MS = 5000;
     /** Maximum number of buffers to read back per capture. */
-    private static readonly MAX_READBACK_BUFFERS = 32;
+    private static readonly MAX_READBACK_BUFFERS = 128;
     /** Maximum byte size of a single buffer readback (16 MB). */
     private static readonly MAX_BUFFER_READBACK_SIZE = 16 * 1024 * 1024;
     /** Timeout for buffer map operations (ms). */
@@ -1329,23 +1369,27 @@ export class SpectorGPU {
         const buffers = this._recorderManager.getBuffers();
         if (buffers.size === 0) return;
 
+        // Select buffers to read back, prioritizing command-referenced ones.
+        // Buffers that already have dataBase64 (from writeBuffer capture) are skipped.
+        const commandTree = this._commandTree?.freeze() ?? [];
+        const selectedIds = selectBuffersForReadback(
+            buffers, commandTree, SpectorGPU.MAX_READBACK_BUFFERS,
+        );
+
+        if (selectedIds.length === 0) return;
+
         this._isReadingBack = true;
 
         try {
+            // Resolve GPU objects for selected buffers, filtering destroyed WeakRefs
             const readable: Array<{ id: string; info: IBufferInfo; gpuBuffer: GPUBuffer }> = [];
-
-            for (const [id, info] of buffers) {
-                if (readable.length >= SpectorGPU.MAX_READBACK_BUFFERS) break;
-                if (info.state === 'destroyed') continue;
+            for (let i = 0; i < selectedIds.length; i++) {
+                const id = selectedIds[i];
                 if (this._recorderManager.isBufferDestroyed(id)) continue;
-                if (info.size === 0 || info.size > SpectorGPU.MAX_BUFFER_READBACK_SIZE) continue;
-                if (!(info.usage & 0x0004)) continue; // GPUBufferUsage.COPY_SRC
-                // Skip mapped buffers — can't be used as copy source while mapped
-                if (info.state === 'mapped' || info.state === 'mapping-pending') continue;
-
+                const info = buffers.get(id);
+                if (!info) continue;
                 const obj = this._recorderManager.getObject(id);
                 if (!obj) continue;
-
                 readable.push({ id, info, gpuBuffer: obj as GPUBuffer });
             }
 
