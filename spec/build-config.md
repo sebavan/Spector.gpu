@@ -8,7 +8,7 @@ Everything needed to set up the project from scratch.
 |-------|-----------|---------|
 | Language | TypeScript | ^5.4 |
 | UI Framework | React | ^19.0 |
-| 3D Engine | @babylonjs/core | ^8.56 (lazy-loaded) |
+| 3D Engine | @babylonjs/core | ^9.0 (lazy-loaded) |
 | Build | Webpack 5 | ^5.90 |
 | CSS | SASS/SCSS | ^1.71 |
 | Testing | Vitest + jsdom | ^1.3 |
