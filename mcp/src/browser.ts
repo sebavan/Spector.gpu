@@ -74,10 +74,19 @@ export class BrowserManager {
                 );
             }
 
-            console.error('[BrowserManager] Launching Chromium…');
+            // WebGPU requires a real GPU — headless Chromium's software
+            // renderer doesn't expose a capable enough adapter for most
+            // engines (e.g. Babylon.js falls back to WebGL2). We launch
+            // headed Chrome so the system GPU is available for WebGPU.
+            console.error('[BrowserManager] Launching Chrome (headed for WebGPU)…');
             this._browser = await chromium.launch({
-                headless: true,
-                args: ['--enable-features=Vulkan,UseSkiaRenderer'],
+                headless: false,
+                channel: 'chrome',
+                args: [
+                    '--enable-unsafe-webgpu',
+                    '--enable-features=Vulkan,UseSkiaRenderer',
+                    '--ignore-gpu-blocklist',
+                ],
             });
 
             this._context = await this._browser.newContext();
