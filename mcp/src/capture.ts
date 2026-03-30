@@ -122,6 +122,13 @@ export class CaptureManager {
   }
 
   /**
+   * Discard any stored capture data. Idempotent.
+   */
+  clear(): void {
+    this.data = null;
+  }
+
+  /**
    * Find a resource by its ID.
    *
    * Uses a prefix→category table for O(1) lookup (e.g. `buf_1` → `buffers`).

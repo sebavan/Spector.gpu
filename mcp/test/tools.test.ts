@@ -1,8 +1,8 @@
 /**
  * MCP Tools Integration Tests
  *
- * Tests all 6 tools end-to-end via InMemoryTransport:
- *   navigate, capture, get_commands, get_resources, get_resource, screenshot
+ * Tests all 7 tools end-to-end via InMemoryTransport:
+ *   navigate, capture, get_commands, get_resources, get_resource, screenshot, close
  *
  * Uses a real CaptureManager + mock BrowserManager to exercise the full
  * MCP request→handler→response pipeline without launching a real browser.
@@ -116,15 +116,16 @@ describe('MCP Tools Integration', () => {
     // 1. Tool listing
     // -----------------------------------------------------------------------
     describe('tool listing', () => {
-        it('lists exactly 6 tools with the correct names', async () => {
+        it('lists exactly 7 tools with the correct names', async () => {
             const { client } = await createTestSetup();
             const { tools } = await client.listTools();
 
-            expect(tools).toHaveLength(6);
+            expect(tools).toHaveLength(7);
 
             const names = tools.map(t => t.name).sort();
             expect(names).toEqual([
                 'capture',
+                'close',
                 'get_commands',
                 'get_resource',
                 'get_resources',
@@ -674,6 +675,58 @@ describe('MCP Tools Integration', () => {
             expect(result.isError).toBe(true);
             const data = parseText(result);
             expect(data.error).toContain('No page open');
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // 15–17. close
+    // -----------------------------------------------------------------------
+    describe('close', () => {
+        it('calls browserMgr.close() and clears capture data', async () => {
+            const { client, mockBrowserMgr, captureMgr } = await createTestSetup(sampleCapture);
+            mockBrowserMgr.close.mockResolvedValue(undefined);
+
+            expect(captureMgr.hasCapture()).toBe(true);
+
+            const result = await client.callTool({
+                name: 'close',
+                arguments: {},
+            });
+
+            expect(result.isError).toBeFalsy();
+            const data = parseText(result);
+            expect(data.success).toBe(true);
+            expect(mockBrowserMgr.close).toHaveBeenCalledOnce();
+            expect(captureMgr.hasCapture()).toBe(false);
+        });
+
+        it('succeeds even when no browser is open (idempotent)', async () => {
+            const { client, mockBrowserMgr } = await createTestSetup();
+            mockBrowserMgr.close.mockResolvedValue(undefined);
+
+            const result = await client.callTool({
+                name: 'close',
+                arguments: {},
+            });
+
+            expect(result.isError).toBeFalsy();
+            const data = parseText(result);
+            expect(data.success).toBe(true);
+            expect(mockBrowserMgr.close).toHaveBeenCalledOnce();
+        });
+
+        it('returns isError=true when close throws', async () => {
+            const { client, mockBrowserMgr } = await createTestSetup();
+            mockBrowserMgr.close.mockRejectedValue(new Error('Browser crashed'));
+
+            const result = await client.callTool({
+                name: 'close',
+                arguments: {},
+            });
+
+            expect(result.isError).toBe(true);
+            const data = parseText(result);
+            expect(data.error).toContain('Browser crashed');
         });
     });
 });

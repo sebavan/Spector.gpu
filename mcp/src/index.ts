@@ -528,6 +528,35 @@ export function createServer(browserMgr: BrowserManager, captureMgr: CaptureMana
         },
     );
 
+    // --------------------------------------------------------------
+    // Tool 7: close
+    // --------------------------------------------------------------
+    server.tool(
+        'close',
+        'Close the browser window and release all resources. The browser will be re-launched on the next navigate call.',
+        {},
+        async () => {
+            try {
+                const release = await mutex.acquire();
+                try {
+                    await browserMgr.close();
+                    captureMgr.clear();
+                    return {
+                        content: [{ type: 'text' as const, text: JSON.stringify({ success: true }) }],
+                    };
+                } finally {
+                    release();
+                }
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : String(err);
+                return {
+                    content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+                    isError: true,
+                };
+            }
+        },
+    );
+
     return server;
 }
 
