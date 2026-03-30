@@ -279,6 +279,53 @@ describe('MCP Tools Integration', () => {
             const data = parseText(result);
             expect(data.error).toContain('No capture available');
         });
+
+        it('slims commands: extracts label, converts positional args, preserves resource refs', async () => {
+            // Create a rich fixture with draw calls, labels, and resource refs
+            const richCapture = JSON.parse(JSON.stringify(sampleCapture));
+            richCapture.commands = [{
+                id: 'cmd_0',
+                type: 'renderPass',
+                name: 'beginRenderPass',
+                args: {
+                    label: 'MainRenderPass',
+                    colorAttachments: [{ view: 'tv_1', loadOp: 'clear' }],
+                },
+                children: [{
+                    id: 'cmd_1',
+                    type: 'drawCall',
+                    name: 'drawIndexed',
+                    args: { '0': 36, '1': 1 },
+                    pipelineId: 'rp_1',
+                    bindGroups: ['bg_1'],
+                    vertexBuffers: ['buf_1'],
+                    children: [],
+                }],
+            }];
+            const { client } = await createTestSetup(richCapture);
+
+            const result = await client.callTool({
+                name: 'get_commands',
+                arguments: { depth: 10 },
+            });
+
+            expect(result.isError).toBeFalsy();
+            const commands = JSON.parse((result.content[0] as { text: string }).text);
+            const rp = commands[0];
+
+            // Label extracted from args to top level
+            expect(rp.label).toBe('MainRenderPass');
+            // Verbose args (colorAttachments, etc.) are stripped
+            expect(rp.args).toBeUndefined();
+
+            // Draw call: positional args as compact array, resource refs preserved
+            const draw = rp.children[0];
+            expect(draw.name).toBe('drawIndexed');
+            expect(draw.args).toEqual([36, 1]);
+            expect(draw.pipelineId).toBe('rp_1');
+            expect(draw.bindGroups).toEqual(['bg_1']);
+            expect(draw.vertexBuffers).toEqual(['buf_1']);
+        });
     });
 
     // -----------------------------------------------------------------------
@@ -422,6 +469,34 @@ describe('MCP Tools Integration', () => {
             expect(result.isError).toBe(true);
             const data = parseText(result);
             expect(data.error).toContain('No capture available');
+        });
+
+        it('caps overview items per category at 30 for AI-friendly response size', async () => {
+            // Create a fixture with 50 buffers to exceed the cap
+            const manyBuffers = JSON.parse(JSON.stringify(sampleCapture));
+            manyBuffers.resources.buffers = {};
+            for (let i = 1; i <= 50; i++) {
+                manyBuffers.resources.buffers[`buf_${i}`] = {
+                    id: `buf_${i}`,
+                    label: `buffer_${i}`,
+                    size: i * 100,
+                };
+            }
+            const { client } = await createTestSetup(manyBuffers);
+
+            const result = await client.callTool({
+                name: 'get_resources',
+                arguments: {},
+            });
+
+            expect(result.isError).toBeFalsy();
+            const data = parseText(result);
+            const buffers = data.buffers as { count: number; items: Array<{ id: string }> };
+
+            // Count reflects all 50 buffers
+            expect(buffers.count).toBe(50);
+            // But items are capped at 30
+            expect(buffers.items).toHaveLength(30);
         });
 
         it('sorts textures by size descending and limits results', async () => {

@@ -77,6 +77,25 @@ class AsyncMutex {
 // Pure helper functions (no side effects, no state)
 // ------------------------------------------------------------------
 
+/**
+ * Collapse inline resource references to just their ID string.
+ *
+ * Walks an object tree. When a node has a `__id` property (string),
+ * the entire object is replaced with just that string value.
+ * Command nodes use `id` (not `__id`), so they are recursed into normally.
+ */
+function collapseResourceRefs(obj: unknown): unknown {
+    if (obj === null || obj === undefined || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(collapseResourceRefs);
+    const rec = obj as Record<string, unknown>;
+    if (typeof rec.__id === 'string') return rec.__id;
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(rec)) {
+        out[key] = collapseResourceRefs(rec[key]);
+    }
+    return out;
+}
+
 /** Truncate a command tree to a maximum nesting depth. */
 function truncateCommands(commands: unknown[], depth: number, current = 0): unknown[] {
     return commands.map(cmd => {
@@ -103,6 +122,66 @@ function stripBulkData(resource: Record<string, unknown>): Record<string, unknow
     delete stripped.previewDataUrl;
     delete stripped.facePreviewUrls;
     return stripped;
+}
+
+/**
+ * Maximum number of items shown per category in the overview response.
+ * Full listing is available via `get_resources({ category: '...' })`.
+ */
+const MAX_OVERVIEW_ITEMS = 30;
+
+/**
+ * Strip command nodes to structural essentials for AI-friendly overview.
+ *
+ * Keeps: id, type, name, label (extracted from args), children.
+ * For draw/dispatch calls: keeps positional args as a compact array.
+ * For all commands: preserves top-level resource ref fields.
+ * Drops verbose args (full GPU state, descriptors) — use get_command(id) for details.
+ */
+function slimCommands(commands: unknown[]): unknown[] {
+    return commands.map(cmd => {
+        const node = cmd as Record<string, unknown>;
+
+        // Pass through truncation markers unchanged
+        if (node._truncated) return node;
+
+        const slim: Record<string, unknown> = {
+            id: node.id,
+            type: node.type,
+            name: node.name,
+        };
+
+        const args = node.args as Record<string, unknown> | undefined;
+        if (args) {
+            // Extract label from args to top level
+            if (typeof args.label === 'string') {
+                slim.label = args.label;
+            }
+            // Convert positional args ({"0": N, "1": M, ...}) to compact array
+            if (args['0'] !== undefined) {
+                const positional: unknown[] = [];
+                for (let i = 0; args[String(i)] !== undefined; i++) {
+                    positional.push(args[String(i)]);
+                }
+                if (positional.length > 0) {
+                    slim.args = positional;
+                }
+            }
+        }
+
+        // Preserve top-level resource reference fields (already collapsed to IDs)
+        for (const key of ['pipelineId', 'bindGroups', 'vertexBuffers', 'indexBuffer']) {
+            if (node[key] !== undefined) slim[key] = node[key];
+        }
+
+        // Recurse into children (omit empty arrays)
+        const children = node.children as unknown[] | undefined;
+        if (children && children.length > 0) {
+            slim.children = slimCommands(children);
+        }
+
+        return slim;
+    });
 }
 
 /**
@@ -276,9 +355,11 @@ export function createServer(browserMgr: BrowserManager, captureMgr: CaptureMana
                             content: [{ type: 'text' as const, text: JSON.stringify([]) }],
                         };
                     }
-                    const truncated = truncateCommands(commands, depth);
+                    const collapsed = collapseResourceRefs(commands) as unknown[];
+                    const truncated = truncateCommands(collapsed, depth);
+                    const slimmed = slimCommands(truncated);
                     return {
-                        content: [{ type: 'text' as const, text: JSON.stringify(truncated) }],
+                        content: [{ type: 'text' as const, text: JSON.stringify(slimmed) }],
                     };
                 } finally {
                     release();
@@ -341,13 +422,16 @@ export function createServer(browserMgr: BrowserManager, captureMgr: CaptureMana
                     }
 
                     // No category: return overview with counts + id/label lists.
+                    // Items capped at MAX_OVERVIEW_ITEMS per category to keep response AI-friendly.
                     const counts = captureMgr.getResourceCounts();
                     const overview: Record<string, unknown> = {};
                     for (const cat of RESOURCE_CATEGORIES) {
                         const resources = captureMgr.getResourcesByCategory(cat);
                         const items: Array<{ id: string; label: unknown }> = [];
                         if (resources) {
-                            for (const [id, resource] of Object.entries(resources)) {
+                            const entries = Object.entries(resources);
+                            const limited = entries.slice(0, MAX_OVERVIEW_ITEMS);
+                            for (const [id, resource] of limited) {
                                 items.push({
                                     id,
                                     label: (resource as Record<string, unknown>).label,
