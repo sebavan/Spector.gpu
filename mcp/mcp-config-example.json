@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "spector-gpu": {
+      "command": "node",
+      "args": ["E:\\spector-gpu\\mcp\\dist\\index.js"]
+    }
+  }
+}

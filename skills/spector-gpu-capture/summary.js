@@ -58,6 +58,7 @@ function buildSummary(capture) {
     const computePipelines = resources.computePipelines ? Object.values(resources.computePipelines) : [];
 
     const summary = {
+        _hint: "Use get_resource with any 'id' below (e.g. tex_1, buf_1, shd_1) to get full details including data and shader source code.",
         adapter: {
             vendor: adapterInfo.vendor,
             architecture: adapterInfo.architecture,
@@ -75,21 +76,34 @@ function buildSummary(capture) {
             hasPreview: !!t.previewDataUrl,
             isCube: (t.size?.depthOrArrayLayers || 1) === 6,
         })),
-        buffers: buffers.map(b => ({
-            id: b.id,
-            label: b.label,
-            size: formatBytes(b.size),
-            usage: decodeBufferUsage(b.usage || 0),
-            hasData: !!b.dataBase64,
-            ...(b.dataBase64 ? { dataBase64: b.dataBase64 } : {}),
-        })),
-        shaderModules: shaders.map(s => ({
-            id: s.id,
-            label: s.label,
-            code: s.code,
-            lines: s.code?.split('\n').length || 0,
-            ...(s.compilationInfo?.length ? { compilationInfo: s.compilationInfo } : {}),
-        })),
+        buffers: (() => {
+            const sorted = [...buffers].sort((a, b) => (b.size || 0) - (a.size || 0));
+            const capped = sorted.slice(0, 20);
+            const mapped = capped.map(b => ({
+                id: b.id,
+                label: b.label,
+                size: formatBytes(b.size),
+                usage: decodeBufferUsage(b.usage || 0),
+                hasData: !!b.dataBase64,
+            }));
+            if (buffers.length > 20) {
+                mapped.push({ _note: `Showing top 20 of ${buffers.length} by size. Use get_resources({ category: 'buffers' }) for all.` });
+            }
+            return mapped;
+        })(),
+        shaderModules: (() => {
+            const capped = shaders.slice(0, 20);
+            const mapped = capped.map(s => ({
+                id: s.id,
+                label: s.label,
+                lines: s.code?.split('\n').length || 0,
+                ...(s.compilationInfo?.length ? { compilationInfo: s.compilationInfo } : {}),
+            }));
+            if (shaders.length > 20) {
+                mapped.push({ _note: `Showing first 20 of ${shaders.length}. Use get_resources({ category: 'shaderModules' }) for all.` });
+            }
+            return mapped;
+        })(),
         pipelines: {
             render: renderPipelines.map(p => ({ id: p.id, label: p.label })),
             compute: computePipelines.map(p => ({ id: p.id, label: p.label })),
