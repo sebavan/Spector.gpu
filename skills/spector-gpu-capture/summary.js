@@ -81,12 +81,10 @@ function buildSummary(capture) {
             size: formatBytes(b.size),
             usage: decodeBufferUsage(b.usage || 0),
             hasData: !!b.dataBase64,
-            ...(b.dataBase64 ? { dataBase64: b.dataBase64 } : {}),
         })),
         shaderModules: shaders.map(s => ({
             id: s.id,
             label: s.label,
-            code: s.code,
             lines: s.code?.split('\n').length || 0,
             ...(s.compilationInfo?.length ? { compilationInfo: s.compilationInfo } : {}),
         })),

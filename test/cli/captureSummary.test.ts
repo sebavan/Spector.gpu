@@ -34,7 +34,7 @@ function makeCapture(shaderOverrides = {}) {
 }
 
 describe('buildSummary', () => {
-    it('includes shader source code in shaderModules', () => {
+    it('excludes shader source code from summary (available via get_resource)', () => {
         const capture = makeCapture();
         const summary = JSON.parse(buildSummary(capture));
 
@@ -42,9 +42,7 @@ describe('buildSummary', () => {
         const shader = summary.shaderModules[0];
         expect(shader.id).toBe('shd_1');
         expect(shader.label).toBe('triangle shader');
-        expect(shader.code).toBeDefined();
-        expect(shader.code).toContain('@vertex');
-        expect(shader.code).toContain('@fragment');
+        expect(shader.code).toBeUndefined();
     });
 
     it('includes line count for shader modules', () => {
@@ -78,7 +76,7 @@ describe('buildSummary', () => {
         expect(shader.compilationInfo[0].type).toBe('warning');
     });
 
-    it('includes buffer dataBase64 in summary output', () => {
+    it('excludes buffer dataBase64 from summary (available via get_resource)', () => {
         const capture = makeCapture();
         capture.resources.buffers = {
             buf_1: {
@@ -95,7 +93,7 @@ describe('buildSummary', () => {
         expect(summary.buffers).toHaveLength(1);
         const buf = summary.buffers[0];
         expect(buf.id).toBe('buf_1');
-        expect(buf.dataBase64).toBe('AAAAAAAAAAA=');
+        expect(buf.dataBase64).toBeUndefined();
         expect(buf.hasData).toBe(true);
     });
 
