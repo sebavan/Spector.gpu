@@ -58,6 +58,7 @@ function buildSummary(capture) {
     const computePipelines = resources.computePipelines ? Object.values(resources.computePipelines) : [];
 
     const summary = {
+        _hint: "Use get_resource with any 'id' below (e.g. tex_1, buf_1, shd_1) to get full details including data and shader source code.",
         adapter: {
             vendor: adapterInfo.vendor,
             architecture: adapterInfo.architecture,
