@@ -1,3 +1,5 @@
+# THE MCP Should be favored, skill is only here until I will be fully sure ;-)
+
 # Spector.GPU Capture CLI
 
 A command-line tool for AI agents to capture and introspect WebGPU frames from any page. Uses Playwright to inject the Spector.GPU content script and capture a frame without requiring the Chrome extension to be installed.
