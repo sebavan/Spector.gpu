@@ -89,10 +89,18 @@ Tracks all GPU resource lifecycle via WeakMap (object → ID) and Maps (ID → i
   - Convert pixels: format-specific → RGBA8 → 128px PNG thumbnail
   - Budget: 4MB total preview data. Uses `budgetExceeded` flag + `continue` (NOT `break`) so every task's `finally` block runs to clean up staging buffers.
 - `_readbackBuffers()`:
-  - Filters: skip destroyed/mapped/oversized, max 32, need COPY_SRC (0x0004)
+  - Uses `selectBuffersForReadback()` from `readbackPriority.ts` to choose which buffers to read
+  - **Priority order**: buffers referenced by draw/dispatch commands first (vertex, index, writeBuffer targets via deep `__id` scan), then unreferenced buffers
+  - **Skips**: buffers that already have `dataBase64` (captured at upload time), destroyed, mapped, oversized, no COPY_SRC
+  - Max 128 buffers per capture (raised from 32)
   - Per-buffer: pushErrorScope → createBuffer(MAP_READ|COPY_DST) → copyBufferToBuffer → submit → popErrorScope
   - mapAsync → getMappedRange → base64 encode
   - Budget: 32MB total, 16MB per buffer
+- **writeBuffer upload capture** (in `_installSpyListeners`):
+  - Subscribes to `queueSpy.onWriteBuffer` to capture buffer data at upload time (zero GPU cost)
+  - For full-buffer writes (offset=0, size ≥ buffer.size): encodes data as base64 and stores via `setBufferData()`
+  - Partial writes are skipped (handled by GPU readback fallback)
+  - This captures vertex/index buffer data uploaded once at init time, before capture is armed
 - `_buildCapture()`:
   - Attach canvas screenshot to render pass nodes
   - Freeze command tree
