@@ -423,6 +423,74 @@ describe('MCP Tools Integration', () => {
             const data = parseText(result);
             expect(data.error).toContain('No capture available');
         });
+
+        it('sorts textures by size descending and limits results', async () => {
+            const multiTexture = JSON.parse(JSON.stringify(sampleCapture));
+            multiTexture.resources.textures = {
+                tex_1: { id: 'tex_1', label: 'small', format: 'rgba8unorm', size: { width: 64, height: 64 } },
+                tex_2: { id: 'tex_2', label: 'large', format: 'rgba8unorm', size: { width: 2048, height: 2048 } },
+                tex_3: { id: 'tex_3', label: 'medium', format: 'rgba8unorm', size: { width: 512, height: 512 } },
+            };
+            const { client } = await createTestSetup(multiTexture);
+
+            const result = await client.callTool({
+                name: 'get_resources',
+                arguments: { category: 'textures', sortBy: 'size', order: 'desc', limit: 2 },
+            });
+
+            expect(result.isError).toBeFalsy();
+            const data = JSON.parse((result.content[0] as { text: string }).text);
+            expect(Array.isArray(data)).toBe(true);
+            expect(data).toHaveLength(2);
+            expect(data[0].id).toBe('tex_2'); // 2048x2048 = largest
+            expect(data[1].id).toBe('tex_3'); // 512x512 = second largest
+        });
+
+        it('sorts buffers by size ascending', async () => {
+            const { client } = await createTestSetup(sampleCapture);
+
+            const result = await client.callTool({
+                name: 'get_resources',
+                arguments: { category: 'buffers', sortBy: 'size', order: 'asc' },
+            });
+
+            expect(result.isError).toBeFalsy();
+            const data = JSON.parse((result.content[0] as { text: string }).text);
+            expect(Array.isArray(data)).toBe(true);
+            expect(data).toHaveLength(2);
+            expect(data[0].id).toBe('buf_2'); // size 64 (smaller)
+            expect(data[1].id).toBe('buf_1'); // size 1024 (larger)
+        });
+
+        it('limits results without sorting', async () => {
+            const { client } = await createTestSetup(sampleCapture);
+
+            const result = await client.callTool({
+                name: 'get_resources',
+                arguments: { category: 'buffers', limit: 1 },
+            });
+
+            expect(result.isError).toBeFalsy();
+            const data = JSON.parse((result.content[0] as { text: string }).text);
+            expect(Array.isArray(data)).toBe(true);
+            expect(data).toHaveLength(1);
+        });
+
+        it('returns map (not array) when no sort or limit specified', async () => {
+            const { client } = await createTestSetup(sampleCapture);
+
+            const result = await client.callTool({
+                name: 'get_resources',
+                arguments: { category: 'buffers' },
+            });
+
+            expect(result.isError).toBeFalsy();
+            const data = JSON.parse((result.content[0] as { text: string }).text);
+            // Without sort/limit, result is an object map, not an array
+            expect(Array.isArray(data)).toBe(false);
+            expect(data).toHaveProperty('buf_1');
+            expect(data).toHaveProperty('buf_2');
+        });
     });
 
     // -----------------------------------------------------------------------

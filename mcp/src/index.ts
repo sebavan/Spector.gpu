@@ -105,6 +105,62 @@ function stripBulkData(resource: Record<string, unknown>): Record<string, unknow
     return stripped;
 }
 
+/**
+ * Extract a numeric sort value from a resource field.
+ *
+ * - Plain numbers are returned directly.
+ * - Objects with `width` and `height` (texture size descriptors) return
+ *   width × height (pixel area) so textures sort by total size.
+ * - Anything else returns null (resource will sort to the end).
+ */
+function getSortValue(resource: Record<string, unknown>, field: string): number | null {
+    const val = resource[field];
+    if (typeof val === 'number') return val;
+    if (val && typeof val === 'object' && 'width' in val && 'height' in val) {
+        const obj = val as { width: number; height: number };
+        return obj.width * obj.height;
+    }
+    return null;
+}
+
+/**
+ * Sort and/or limit a resource map for the get_resources response.
+ *
+ * When sorting or limiting is requested, the map is converted to an array
+ * (key order is lost, but the caller gets a ranked list). Without either,
+ * the original map is returned unchanged for backward compatibility.
+ *
+ * @returns An array (sorted/limited) or the original map (no-op).
+ */
+function sortAndLimitResources(
+    resources: Record<string, Record<string, unknown>>,
+    sortBy?: string,
+    order: 'asc' | 'desc' = 'desc',
+    limit?: number,
+): Record<string, unknown>[] | Record<string, Record<string, unknown>> {
+    if (!sortBy && !limit) return resources;
+
+    let entries = Object.values(resources);
+
+    if (sortBy) {
+        entries.sort((a, b) => {
+            const aVal = getSortValue(a, sortBy);
+            const bVal = getSortValue(b, sortBy);
+            if (aVal === null && bVal === null) return 0;
+            if (aVal === null) return 1;
+            if (bVal === null) return -1;
+            const diff = aVal - bVal;
+            return order === 'desc' ? -diff : diff;
+        });
+    }
+
+    if (limit !== undefined) {
+        entries = entries.slice(0, limit);
+    }
+
+    return entries;
+}
+
 // ------------------------------------------------------------------
 // Server factory
 // ------------------------------------------------------------------
@@ -242,11 +298,14 @@ export function createServer(browserMgr: BrowserManager, captureMgr: CaptureMana
     // --------------------------------------------------------------
     server.tool(
         'get_resources',
-        'List GPU resources by category, or get an overview of all categories',
+        'List GPU resources by category with optional sorting and limiting. Use sortBy/order/limit to answer targeted queries (e.g., largest textures by size). Without a category, returns a compact overview of all categories.',
         {
             category: z.string().optional(),
+            sortBy: z.string().optional(),
+            order: z.enum(['asc', 'desc']).optional().default('desc'),
+            limit: z.number().int().min(1).optional(),
         },
-        async ({ category }) => {
+        async ({ category, sortBy, order, limit }) => {
             try {
                 const release = await mutex.acquire();
                 try {
@@ -269,14 +328,15 @@ export function createServer(browserMgr: BrowserManager, captureMgr: CaptureMana
                         }
 
                         const resources = captureMgr.getResourcesByCategory(category);
-                        const stripped: Record<string, unknown> = {};
+                        const stripped: Record<string, Record<string, unknown>> = {};
                         if (resources) {
                             for (const [id, resource] of Object.entries(resources)) {
                                 stripped[id] = stripBulkData(resource as Record<string, unknown>);
                             }
                         }
+                        const result = sortAndLimitResources(stripped, sortBy, order, limit);
                         return {
-                            content: [{ type: 'text' as const, text: JSON.stringify(stripped) }],
+                            content: [{ type: 'text' as const, text: JSON.stringify(result) }],
                         };
                     }
 
