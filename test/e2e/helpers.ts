@@ -99,6 +99,7 @@ export function fixtureUrl(name: string): string {
  *   READY_<n>    — frame loop running (triangle / multi-pass)
  *   COMPUTE_DONE — compute work finished
  *   NO_WEBGPU    — navigator.gpu unavailable
+ *   NO_ADAPTER   — no WebGPU adapter is available
  *   ERROR_*      — fatal error
  */
 export async function waitForPageReady(
@@ -106,11 +107,21 @@ export async function waitForPageReady(
     titlePattern: RegExp,
     timeout = 15_000,
 ): Promise<void> {
-    await page.waitForFunction(
-        (src: string) => new RegExp(src).test(document.title),
+    const title = await page.waitForFunction(
+        (src: string) => {
+            if (new RegExp(src).test(document.title)) return document.title;
+            if (/^(NO_WEBGPU|NO_ADAPTER|ERROR_)/.test(document.title)) {
+                return document.title;
+            }
+            return false;
+        },
         titlePattern.source,
         { timeout },
     );
+    const value = await title.jsonValue();
+    if (!titlePattern.test(value)) {
+        throw new Error(`WebGPU fixture failed to initialize: ${value}`);
+    }
 }
 
 // ── Capture utilities ────────────────────────────────────────────────

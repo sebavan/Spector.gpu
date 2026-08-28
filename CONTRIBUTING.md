@@ -61,7 +61,9 @@ WebGPU end-to-end tests require headed Chrome and a usable GPU:
 npm run test:e2e
 ```
 
-Real-site tests require network access. If a GPU, driver, or site limitation prevents an E2E test, describe the environment and exact result in the pull request rather than weakening the test.
+Standard hosted CI runners do not provide a reliable WebGPU adapter, including through SwiftShader. CI therefore runs the non-WebGPU extension smoke suite; run the complete WebGPU suite locally or on a GPU-enabled runner.
+
+Real-site tests also require network access. If a GPU, driver, or site limitation prevents an E2E test, describe the environment and exact result in the pull request rather than weakening the test.
 
 ## Pull requests
 
