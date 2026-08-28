@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SpectorGPU } from '../../src/core/spectorGpu';
+import { SPECTOR_GPU_VERSION } from '../../src/shared/constants';
 import { globalIdGenerator } from '../../src/shared/utils';
 import type { ICapture, IAdapterInfo } from '../../src/shared/types';
 import {
@@ -119,7 +120,7 @@ describe('SpectorGPU', () => {
         const capture = spector.stopCapture();
 
         expect(capture).not.toBeNull();
-        expect(capture!.version).toBe('0.1.0');
+        expect(capture!.version).toBe(SPECTOR_GPU_VERSION);
         expect(capture!.commands).toBeDefined();
         expect(capture!.stats).toBeDefined();
     });

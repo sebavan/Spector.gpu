@@ -1,0 +1,22 @@
+name: Security hardening
+description: Suggest a non-sensitive security or permission improvement
+title: "[Security hardening]: "
+labels:
+  - security
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not use this form for exploitable or sensitive vulnerabilities. Follow SECURITY.md and report those privately.
+  - type: textarea
+    id: concern
+    attributes:
+      label: Hardening opportunity
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Suggested outcome
+    validations:
+      required: true

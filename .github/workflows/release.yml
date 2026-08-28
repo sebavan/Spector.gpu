@@ -24,10 +24,35 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Check release versions
+        run: npm run check:versions
+
+      - name: Lint
+        run: npm run lint
+
       - name: Run tests
         run: npm test
 
       - name: Build production
+        run: npm run build
+
+      - name: Install MCP dependencies
+        working-directory: mcp
+        run: npm ci
+
+      - name: Audit MCP dependencies
+        working-directory: mcp
+        run: npm audit --audit-level=high
+
+      - name: Test MCP server
+        working-directory: mcp
+        run: npm test
+
+      - name: Build MCP server
+        working-directory: mcp
         run: npm run build
 
       - name: Package extension
@@ -37,6 +62,27 @@ jobs:
           cd ..
           echo "Extension packaged: spector-gpu-${{ github.ref_name }}.zip"
           ls -lh spector-gpu-${{ github.ref_name }}.zip
+
+      - name: Package MCP server
+        run: |
+          mkdir -p release-mcp/dist release-mcp/mcp
+          cp dist/contentScript.js release-mcp/dist/
+          cp -r mcp/dist release-mcp/mcp/dist
+          cp mcp/package.json mcp/package-lock.json mcp/README.md release-mcp/mcp/
+          cp LICENSE PRIVACY.md SECURITY.md release-mcp/
+          cd release-mcp
+          zip -r ../spector-gpu-mcp-${{ github.ref_name }}.zip .
+          cd ..
+          echo "MCP server packaged: spector-gpu-mcp-${{ github.ref_name }}.zip"
+          ls -lh spector-gpu-mcp-${{ github.ref_name }}.zip
+
+      - name: Generate checksums
+        run: |
+          sha256sum \
+            spector-gpu-${{ github.ref_name }}.zip \
+            spector-gpu-mcp-${{ github.ref_name }}.zip \
+            > SHA256SUMS.txt
+          cat SHA256SUMS.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -50,7 +96,15 @@ jobs:
             2. Unzip to a folder
             3. Open `chrome://extensions/` → Enable Developer mode
             4. Click "Load unpacked" → Select the unzipped folder
-          files: spector-gpu-${{ github.ref_name }}.zip
+
+            ### Install the MCP server
+            1. Download and unzip `spector-gpu-mcp-${{ github.ref_name }}.zip`
+            2. Run `npm ci --omit=dev` in the extracted `mcp/` folder
+            3. Configure your MCP client to run `node /path/to/mcp/dist/index.js`
+          files: |
+            spector-gpu-${{ github.ref_name }}.zip
+            spector-gpu-mcp-${{ github.ref_name }}.zip
+            SHA256SUMS.txt
           draft: false
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
           generate_release_notes: true

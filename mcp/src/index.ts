@@ -245,7 +245,7 @@ function sortAndLimitResources(
 // ------------------------------------------------------------------
 
 /**
- * Create an MCP server with all 6 Spector.GPU tools registered.
+ * Create an MCP server with all 7 Spector.GPU tools registered.
  *
  * Uses dependency injection: tests supply mock BrowserManager /
  * CaptureManager instances; the real entrypoint wires production ones.
@@ -257,7 +257,7 @@ function sortAndLimitResources(
 export function createServer(browserMgr: BrowserManager, captureMgr: CaptureManager): McpServer {
     const server = new McpServer({
         name: 'spector-gpu',
-        version: '0.1.0',
+        version: '0.5.1',
     });
 
     const mutex = new AsyncMutex();

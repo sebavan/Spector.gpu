@@ -151,4 +151,6 @@ test:coverage→ vitest run --coverage
 lint         → eslint src/ test/
 clean        → rimraf dist
 test:e2e     → playwright test
+check:versions → node tools/check-versions.mjs
+docs:screenshot → node tools/generate-readme-screenshot.mjs
 ```

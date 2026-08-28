@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a reproducible Spector.GPU problem
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Do not attach proprietary captures, shaders, credentials, or private URLs.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      options:
+        - Browser extension
+        - MCP server
+        - Both
+        - Build or documentation
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Spector.GPU version
+      placeholder: v0.5.1 or commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser, operating system, GPU/driver, and rendering framework
+      placeholder: Chrome 140, Windows 11, NVIDIA ..., Babylon.js ...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Provide minimal, complete steps and a safe public URL or repository when possible.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include relevant console errors or logs.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I tested the latest release or current main branch.
+          required: true
+        - label: I searched existing issues.
+          required: true
+        - label: This report contains no sensitive or proprietary data.
+          required: true

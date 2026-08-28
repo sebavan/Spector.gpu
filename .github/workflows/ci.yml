@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -26,6 +29,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Check versions
+        run: npm run check:versions
+
       - name: Lint
         run: npm run lint
 
@@ -33,6 +42,22 @@ jobs:
         run: npm test
 
       - name: Build production
+        run: npm run build
+
+      - name: Install MCP dependencies
+        working-directory: mcp
+        run: npm ci
+
+      - name: Audit MCP dependencies
+        working-directory: mcp
+        run: npm audit --audit-level=high
+
+      - name: Test MCP server
+        working-directory: mcp
+        run: npm test
+
+      - name: Build MCP server
+        working-directory: mcp
         run: npm run build
 
       - name: Check dist size
@@ -44,9 +69,44 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Upload extension artifact
-        if: matrix.node-version == 22
         uses: actions/upload-artifact@v4
         with:
           name: spector-gpu-extension
           path: dist/
           retention-days: 30
+
+  local-fixture-e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production
+        run: npm run build
+
+      - name: Install Chrome and system dependencies
+        run: npx playwright install --with-deps chrome
+
+      - name: Run extension smoke tests
+        run: >-
+          xvfb-run --auto-servernum npm run test:e2e --
+          test/e2e/no-webgpu.spec.ts
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
