@@ -18,7 +18,7 @@
  * Requires internet access — skipped if the site is unreachable.
  */
 
-import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { test, expect, type BrowserContext, type Frame, type Page } from '@playwright/test';
 import { launchWithExtension } from './helpers';
 
 // Babylon Playground loads heavy assets — generous timeout.
@@ -42,8 +42,8 @@ test.describe('Babylon.js Playground Capture', () => {
         // #WGZLGJ#11018 is a simple PBR sphere scene that uses WebGPU.
         try {
             await page.goto(
-                'https://playground.babylonjs.com/#WGZLGJ#11018',
-                { waitUntil: 'networkidle', timeout: 60_000 },
+                'https://playground.babylonjs.com/?iswebgpu=true#WGZLGJ#11018',
+                { waitUntil: 'domcontentloaded', timeout: 60_000 },
             );
         } catch {
             test.skip(true, 'Could not reach Babylon.js Playground (no internet?)');
@@ -57,29 +57,32 @@ test.describe('Babylon.js Playground Capture', () => {
 
         // ── Verify Spector.GPU is injected ────────────────────────────
 
-        // Babylon.js Playground may use iframes. Find the frame with
-        // Spector.GPU injected — it could be the main frame or an iframe.
-        let targetFrame = page;
-        const spectorInMain = await page.evaluate(() => {
-            return !!(window as any).__spectorGpuInstance;
-        });
-
-        if (!spectorInMain) {
-            // Check iframes
-            const frames = page.frames();
-            for (const frame of frames) {
+        // The playground shell and scene frame both receive the init script.
+        // Select the frame that actually owns Babylon's discovered GPU device.
+        let targetFrame: Page | Frame | null = null;
+        await expect.poll(async () => {
+            for (const frame of page.frames()) {
                 try {
-                    const hasSpector = await frame.evaluate(() => {
-                        return !!(window as any).__spectorGpuInstance;
+                    const hasDevice = await frame.evaluate(() => {
+                        const s = (window as any).__spectorGpuInstance;
+                        return s?._device != null;
                     });
-                    if (hasSpector) {
-                        targetFrame = frame as any;
-                        break;
+                    if (hasDevice) {
+                        targetFrame = frame;
+                        return true;
                     }
                 } catch {
-                    // Cross-origin or detached frame — skip
+                    // Detached frames can disappear while the playground reloads.
                 }
             }
+            return false;
+        }, {
+            message: 'Device not discovered in any playground frame',
+            timeout: 45_000,
+        }).toBe(true);
+
+        if (!targetFrame) {
+            throw new Error('Device frame was not retained after discovery');
         }
 
         const spectorActive = await targetFrame.evaluate(() => {
@@ -94,16 +97,6 @@ test.describe('Babylon.js Playground Capture', () => {
             return s?.adapterInfo != null;
         });
         expect(detected, 'WebGPU adapter not detected').toBe(true);
-
-        // ── Verify device was discovered ─────────────────────────────
-        // The _device field is set when the inline requestDevice wrapper
-        // fires onDeviceCreated, which triggers _discoverDevice.
-
-        const hasDevice = await targetFrame.evaluate(() => {
-            const s = (window as any).__spectorGpuInstance;
-            return s?._device != null;
-        });
-        expect(hasDevice, 'Device not discovered — inline requestDevice wrapper may have failed').toBe(true);
 
         // ── Trigger capture and verify results ───────────────────────
 
@@ -139,12 +132,6 @@ test.describe('Babylon.js Playground Capture', () => {
                 });
 
                 s.captureNextFrame();
-                // Auto-stop after one full frame cycle (2 rAFs).
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        if (s.isCapturing) s.stopCapture();
-                    });
-                });
             });
         });
 

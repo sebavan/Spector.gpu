@@ -1,5 +1,8 @@
 import { defineConfig } from 'vitest/config';
 import path from 'path';
+import { fileURLToPath } from 'node:url';
+
+const root = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   test: {
@@ -22,9 +25,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@core': path.resolve(__dirname, 'src/core'),
-      '@shared': path.resolve(__dirname, 'src/shared'),
-      '@extension': path.resolve(__dirname, 'src/extension')
+      '@core': path.resolve(root, 'src/core'),
+      '@shared': path.resolve(root, 'src/shared'),
+      '@extension': path.resolve(root, 'src/extension')
     }
   }
 });

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a vulnerability privately
+    url: https://github.com/sebavan/Spector.gpu/security/advisories/new
+    about: Use GitHub's private vulnerability reporting for sensitive security issues.
+  - name: Support guide
+    url: https://github.com/sebavan/Spector.gpu/blob/main/SUPPORT.md
+    about: Check the required environment and diagnostic information before opening an issue.

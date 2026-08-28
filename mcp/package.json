@@ -1,6 +1,27 @@
 {
   "name": "spector-gpu-mcp",
-  "version": "0.1.0",
+  "version": "0.5.1",
+  "description": "Stateful MCP server for capturing and inspecting WebGPU frames with Spector.GPU",
+  "license": "MIT",
+  "author": "Sebastien Vandenberghe",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sebavan/Spector.gpu.git",
+    "directory": "mcp"
+  },
+  "homepage": "https://github.com/sebavan/Spector.gpu/tree/main/mcp#readme",
+  "bugs": {
+    "url": "https://github.com/sebavan/Spector.gpu/issues"
+  },
+  "keywords": [
+    "webgpu",
+    "mcp",
+    "debugger",
+    "playwright"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "scripts": {
     "build": "tsc",
@@ -13,8 +34,8 @@
     "zod": "^3.25.0"
   },
   "devDependencies": {
+    "@types/node": "^20.0.0",
     "typescript": "^5.4.0",
-    "vitest": "^1.3.0",
-    "@types/node": "^20.0.0"
+    "vitest": "^4.1.11"
   }
 }

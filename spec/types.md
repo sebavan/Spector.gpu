@@ -304,7 +304,7 @@ Messages are routed: Content Script (MAIN) → window.postMessage → Content Sc
 ## Constants (`src/shared/constants.ts`)
 
 ```typescript
-export const SPECTOR_GPU_VERSION = '0.1.0';
+export const SPECTOR_GPU_VERSION = '0.5.1';
 export const STORAGE_KEY_PREFIX = 'spectorGpu_capture_';
 export const MAX_COMMAND_COUNT = 50_000;
 export const CAPTURE_TIMEOUT_MS = 30_000;
