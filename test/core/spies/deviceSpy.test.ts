@@ -290,19 +290,20 @@ describe('DeviceSpy', () => {
 
     describe('installPrototypeSpy', () => {
         let savedGPUAdapter: unknown;
+        const mutableGlobal = globalThis as unknown as Record<string, unknown>;
 
         beforeEach(() => {
             // Expose MockGPUAdapter as the global GPUAdapter so
             // _getAdapterPrototype() can find it.
-            savedGPUAdapter = (globalThis as any).GPUAdapter;
-            (globalThis as any).GPUAdapter = MockGPUAdapter;
+            savedGPUAdapter = mutableGlobal.GPUAdapter;
+            mutableGlobal.GPUAdapter = MockGPUAdapter;
         });
 
         afterEach(() => {
             if (savedGPUAdapter === undefined) {
-                delete (globalThis as any).GPUAdapter;
+                delete mutableGlobal.GPUAdapter;
             } else {
-                (globalThis as any).GPUAdapter = savedGPUAdapter;
+                mutableGlobal.GPUAdapter = savedGPUAdapter;
             }
         });
 
@@ -369,7 +370,7 @@ describe('DeviceSpy', () => {
 
         it('no-op when GPUAdapter is not available', () => {
             // Remove global GPUAdapter
-            delete (globalThis as any).GPUAdapter;
+            delete mutableGlobal.GPUAdapter;
 
             // Should not throw
             expect(() => deviceSpy.installPrototypeSpy()).not.toThrow();

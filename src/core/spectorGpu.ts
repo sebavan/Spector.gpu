@@ -24,7 +24,11 @@ import { Observable } from '@shared/utils';
 import { Logger } from '@shared/utils/logger';
 import { globalIdGenerator } from '@shared/utils';
 import { serializeDescriptor, type IdResolver } from '@shared/utils/serialization';
-import { SPECTOR_GPU_VERSION, CAPTURE_TIMEOUT_MS } from '@shared/constants';
+import {
+    CAPTURE_FORMAT_VERSION,
+    SPECTOR_GPU_VERSION,
+    CAPTURE_TIMEOUT_MS,
+} from '@shared/constants';
 import type { IAdapterInfo, IBufferInfo, ICapture, ICaptureStats, CommandType as CommandTypeEnum, ITextureInfo } from '@shared/types';
 import { CommandType } from '@shared/types';
 import { CommandTreeBuilder } from '@core/capture';
@@ -358,10 +362,23 @@ export class SpectorGPU {
     // Late-detection: multi-strategy prototype hooks state.
     // Stored originals enable clean disposal.
     private _lateDetectionInstalled = false;
-    private _origDeviceProtoMethods: Array<{ proto: any; name: string; original: Function }> = [];
-    private _origConfigure: { proto: any; original: Function } | null = null;
-    private _origGetCurrentTexture: { proto: any; original: Function } | null = null;
-    private _origQueueSubmit: { proto: any; original: Function } | null = null;
+    private _origDeviceProtoMethods: Array<{
+        proto: Record<string, CallableFunction>;
+        name: string;
+        original: CallableFunction;
+    }> = [];
+    private _origConfigure: {
+        proto: Record<string, CallableFunction>;
+        original: CallableFunction;
+    } | null = null;
+    private _origGetCurrentTexture: {
+        proto: Record<string, CallableFunction>;
+        original: CallableFunction;
+    } | null = null;
+    private _origQueueSubmit: {
+        proto: Record<string, CallableFunction>;
+        original: CallableFunction;
+    } | null = null;
     private _contextToDevice = new WeakMap<object, GPUDevice>();
 
     // WebGPU canvas tracking — set via configure() hook and onWebGPUContextCreated.
@@ -544,7 +561,7 @@ export class SpectorGPU {
     private _hookDevicePrototypeMethods(): void {
         if (typeof GPUDevice === 'undefined') return;
 
-        const proto = GPUDevice.prototype as any;
+        const proto = GPUDevice.prototype as unknown as Record<string, CallableFunction>;
         const self = this;
 
         // Hook the most frequently called device methods.
@@ -565,13 +582,13 @@ export class SpectorGPU {
             const name = methods[i];
             if (typeof proto[name] !== 'function') continue;
 
-            const original = proto[name] as Function;
+            const original = proto[name];
             this._origDeviceProtoMethods.push({ proto, name, original });
 
-            proto[name] = function (this: GPUDevice, ...args: any[]) {
+            proto[name] = function (this: GPUDevice, ...args: unknown[]) {
                 // 'this' is the GPUDevice instance — discover and patch it.
                 self._discoverDevice(this);
-                return original.apply(this, args);
+                return Reflect.apply(original, this, args);
             };
         }
     }
@@ -588,28 +605,36 @@ export class SpectorGPU {
     private _hookCanvasContextPrototype(): void {
         if (typeof GPUCanvasContext === 'undefined') return;
 
-        const proto = GPUCanvasContext.prototype as any;
+        const proto =
+            GPUCanvasContext.prototype as unknown as Record<string, CallableFunction>;
         const self = this;
 
         // configure({ device, format, ... }) — captures the device reference.
         if (typeof proto.configure === 'function') {
-            const original = proto.configure as Function;
+            const original = proto.configure;
             this._origConfigure = { proto, original };
 
-            proto.configure = function (this: GPUCanvasContext, config: any) {
-                if (config?.device) {
+            proto.configure = function (
+                this: GPUCanvasContext,
+                config: GPUCanvasConfiguration,
+            ) {
+                if (config.device) {
                     self._contextToDevice.set(this, config.device);
                     self._discoverDevice(config.device);
                 }
                 // Track the WebGPU canvas for screenshot targeting.
                 // GPUCanvasContext.canvas gives us the exact canvas element.
                 try {
-                    const canvas = (this as any).canvas;
+                    const canvas = (
+                        this as GPUCanvasContext & {
+                            readonly canvas?: HTMLCanvasElement | OffscreenCanvas;
+                        }
+                    ).canvas;
                     if (canvas) {
                         self._webgpuCanvas = canvas;
                     }
                 } catch { /* canvas property may not exist in all environments */ }
-                return original.apply(this, arguments);
+                return Reflect.apply(original, this, [config]);
             };
         }
 
@@ -617,7 +642,7 @@ export class SpectorGPU {
         // If we haven't found a device yet, look it up in the
         // context→device WeakMap populated by the configure hook.
         if (typeof proto.getCurrentTexture === 'function') {
-            const original = proto.getCurrentTexture as Function;
+            const original = proto.getCurrentTexture;
             this._origGetCurrentTexture = { proto, original };
 
             proto.getCurrentTexture = function (this: GPUCanvasContext) {
@@ -627,7 +652,7 @@ export class SpectorGPU {
                         self._discoverDevice(dev);
                     }
                 }
-                const texture = original.apply(this, arguments);
+                const texture = Reflect.apply(original, this, []) as GPUTexture;
                 // Track the canvas texture so it appears in the resource list
                 // with isCanvasTexture=true. Idempotent — recordCanvasTexture
                 // returns early if this exact object is already tracked.
@@ -661,19 +686,19 @@ export class SpectorGPU {
     private _hookQueuePrototype(): void {
         if (typeof GPUQueue === 'undefined') return;
 
-        const proto = GPUQueue.prototype as any;
+        const proto = GPUQueue.prototype as unknown as Record<string, CallableFunction>;
         if (typeof proto.submit !== 'function') return;
 
-        const original = proto.submit as Function;
+        const original = proto.submit;
         this._origQueueSubmit = { proto, original };
 
         const self = this;
 
-        proto.submit = function (this: GPUQueue) {
+        proto.submit = function (this: GPUQueue, ...args: unknown[]) {
             if (!self._device) {
                 self._probeForDevice();
             }
-            return original.apply(this, arguments);
+            return Reflect.apply(original, this, args);
         };
     }
 
@@ -1480,6 +1505,7 @@ export class SpectorGPU {
 
         return {
             id: globalIdGenerator.next('capture'),
+            formatVersion: CAPTURE_FORMAT_VERSION,
             version: SPECTOR_GPU_VERSION,
             timestamp: Date.now(),
             duration,

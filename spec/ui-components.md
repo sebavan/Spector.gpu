@@ -6,7 +6,7 @@ React 19 result viewer component tree and behavior.
 
 ```
 ResultApp
-├── CaptureHeader (stats badges: commands, draws, passes, textures, duration)
+├── CaptureHeader (stats badges + two-step local capture deletion)
 ├── SidebarPanel (left, width via state, min 200px, max 500px)
 │   ├── ModeToggle ("COMMANDS" | "RESOURCES")
 │   ├── [Commands mode] CommandTree

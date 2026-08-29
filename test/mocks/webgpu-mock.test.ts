@@ -35,9 +35,9 @@ describe('WebGPU Mock', () => {
         it('installGlobal sets navigator.gpu', () => {
             const { gpu, installGlobal, removeGlobal } = createMockWebGPU();
             installGlobal();
-            expect((navigator as any).gpu).toBe(gpu);
+            expect(navigator.gpu).toBe(gpu);
             removeGlobal();
-            expect((navigator as any).gpu).toBeUndefined();
+            expect(navigator.gpu).toBeUndefined();
         });
 
         it('installGlobal is idempotent', () => {
@@ -86,7 +86,9 @@ describe('WebGPU Mock', () => {
             expect(device.__calls).toHaveLength(2);
             expect(device.__calls[0].method).toBe('createBuffer');
             expect(device.__calls[1].method).toBe('createBuffer');
-            expect((device.__calls[1].args[0] as any).label).toBe('vbo');
+            expect(
+                (device.__calls[1].args[0] as { label?: string }).label,
+            ).toBe('vbo');
         });
 
         it('tracks queue.submit calls', () => {

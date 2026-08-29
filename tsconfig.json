@@ -15,11 +15,11 @@
     "sourceMap": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "baseUrl": ".",
+    "types": ["chrome", "@webgpu/types"],
     "paths": {
-      "@core/*": ["src/core/*"],
-      "@shared/*": ["src/shared/*"],
-      "@extension/*": ["src/extension/*"]
+      "@core/*": ["./src/core/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@extension/*": ["./src/extension/*"]
     }
   },
   "include": ["src/**/*"],

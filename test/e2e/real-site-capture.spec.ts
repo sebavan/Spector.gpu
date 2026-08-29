@@ -52,7 +52,7 @@ test.describe('Real WebGPU Site Capture', () => {
         // Spector.GPU should be active in the iframe (injected via all_frames: true
         // or via addInitScript which propagates to frames).
         const spectorActive = await sampleFrame!.evaluate(() => {
-            return !!(window as any).__spectorGpuInstance;
+            return !!window.__spectorGpuInstance;
         });
         expect(spectorActive, 'Spector.GPU not injected into sample iframe').toBe(true);
 
@@ -63,7 +63,7 @@ test.describe('Real WebGPU Site Capture', () => {
         // WebGPU should be detected — adapterInfo should be non-null.
         // Even late-detected devices produce synthetic adapter info.
         const detected = await sampleFrame!.evaluate(() => {
-            const s = (window as any).__spectorGpuInstance;
+            const s = window.__spectorGpuInstance;
             return s?.adapterInfo != null;
         });
         expect(detected, 'WebGPU not detected — late-detection may have failed').toBe(true);
@@ -75,13 +75,13 @@ test.describe('Real WebGPU Site Capture', () => {
                     () => reject(new Error('Capture timed out after 10s')),
                     10_000,
                 );
-                const s = (window as any).__spectorGpuInstance;
+                const s = window.__spectorGpuInstance;
                 if (!s) {
                     reject(new Error('No Spector.GPU instance'));
                     return;
                 }
 
-                s.onCaptureComplete.add((capture: any) => {
+                s.onCaptureComplete.add((capture) => {
                     clearTimeout(timeout);
                     resolve({
                         drawCalls: capture.stats.drawCalls,
@@ -91,7 +91,7 @@ test.describe('Real WebGPU Site Capture', () => {
                         shaderModuleCount: capture.stats.shaderModuleCount,
                     });
                 });
-                s.onCaptureError.add(({ error }: any) => {
+                s.onCaptureError.add(({ error }) => {
                     clearTimeout(timeout);
                     reject(error instanceof Error ? error : new Error(String(error)));
                 });

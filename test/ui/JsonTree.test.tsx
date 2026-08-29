@@ -107,7 +107,7 @@ describe('JsonTree', () => {
     it('does not crash on deeply nested objects (MAX_DEPTH protection)', () => {
         // Build actual circular reference — should not infinite-loop
         // because MAX_DEPTH (10) limits recursion regardless
-        const obj: any = { a: 1 };
+        const obj: { a: number; self?: unknown } = { a: 1 };
         obj.self = obj;
 
         expect(() => {
@@ -118,7 +118,7 @@ describe('JsonTree', () => {
     // ── Depth truncation ────────────────────────────────────────────
 
     it('handles deeply nested objects up to MAX_DEPTH (10)', () => {
-        let data: any = { value: 'leaf' };
+        let data: unknown = { value: 'leaf' };
         for (let i = 0; i < 15; i++) {
             data = { nested: data };
         }

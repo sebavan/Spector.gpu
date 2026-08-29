@@ -1,6 +1,8 @@
 // Spector.GPU Result View — Dark Theme
 // ─────────────────────────────────────────────────────────────────────
 
+@use 'sass:color';
+
 // Palette
 $bg-primary: #0a0a0f;
 $bg-secondary: #111118;
@@ -78,7 +80,38 @@ body {
 
     .header-stats {
         display: flex;
+        gap: 12px;
+    }
+
+    .header-actions {
+        display: flex;
+        align-items: center;
         gap: 16px;
+    }
+
+    .header-delete {
+        padding: 6px 10px;
+        border: 1px solid $border;
+        border-radius: 2px;
+        background: $bg-tertiary;
+        color: $text-secondary;
+        cursor: pointer;
+        white-space: nowrap;
+
+        &:hover:not(:disabled) {
+            color: $text-primary;
+            background: $bg-hover;
+        }
+
+        &.armed {
+            border-color: #d45b5b;
+            color: #ff8a80;
+        }
+
+        &:disabled {
+            cursor: wait;
+            opacity: 0.6;
+        }
     }
 
     .stat-badge {
@@ -607,7 +640,7 @@ $gutter-width: 48px;
     font-family: 'Cascadia Code', 'Consolas', monospace;
 
     &:hover {
-        color: adjust-color($accent, $lightness: 15%);
+        color: color.adjust($accent, $lightness: 15%);
         text-decoration-style: solid;
     }
 }

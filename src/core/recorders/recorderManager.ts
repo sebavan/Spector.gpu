@@ -15,9 +15,16 @@ import type {
     BufferState,
     BindGroupResourceType,
     BindGroupLayoutEntryType,
+    IVertexBufferLayout,
+    IColorTargetState,
 } from '@shared/types';
 import { globalIdGenerator } from '@shared/utils';
 import { serializeDescriptor } from '@shared/utils/serialization';
+
+type CompatibleGPUTextureDescriptor = Omit<GPUTextureDescriptor, 'size'> & {
+    /** Legacy test/mocking support for the pre-WebIDL scalar size shorthand. */
+    size: GPUExtent3D | number;
+};
 
 /**
  * Manages the lifecycle tracking of all GPU resources.
@@ -123,7 +130,7 @@ export class RecorderManager {
 
     // ─── Buffer ──────────────────────────────────────────────────────
 
-    public recordBufferCreation(buffer: object, descriptor: any): string {
+    public recordBufferCreation(buffer: object, descriptor: GPUBufferDescriptor): string {
         const id = this.trackObject(buffer, 'buf');
         this._buffers.set(id, {
             id,
@@ -164,19 +171,41 @@ export class RecorderManager {
 
     // ─── Texture ─────────────────────────────────────────────────────
 
-    public recordTextureCreation(texture: object, descriptor: any): string {
+    public recordTextureCreation(
+        texture: object,
+        descriptor: CompatibleGPUTextureDescriptor,
+    ): string {
         const id = this.trackObject(texture, 'tex');
         const size = descriptor.size;
+        let normalizedSize: {
+            width: number;
+            height: number;
+            depthOrArrayLayers: number;
+        };
+        if (typeof size === 'number') {
+            normalizedSize = {
+                width: size,
+                height: 1,
+                depthOrArrayLayers: 1,
+            };
+        } else if (Symbol.iterator in size) {
+            const dimensions = Array.from(size);
+            normalizedSize = {
+                width: dimensions[0] ?? 1,
+                height: dimensions[1] ?? 1,
+                depthOrArrayLayers: dimensions[2] ?? 1,
+            };
+        } else {
+            normalizedSize = {
+                width: size.width,
+                height: size.height ?? 1,
+                depthOrArrayLayers: size.depthOrArrayLayers ?? 1,
+            };
+        }
         this._textures.set(id, {
             id,
             label: descriptor.label,
-            size: typeof size === 'object' && size !== null
-                ? {
-                    width: size.width ?? size[0] ?? 1,
-                    height: size.height ?? size[1] ?? 1,
-                    depthOrArrayLayers: size.depthOrArrayLayers ?? size[2] ?? 1,
-                }
-                : { width: size as number, height: 1, depthOrArrayLayers: 1 },
+            size: normalizedSize,
             mipLevelCount: descriptor.mipLevelCount ?? 1,
             sampleCount: descriptor.sampleCount ?? 1,
             dimension: descriptor.dimension ?? '2d',
@@ -245,7 +274,11 @@ export class RecorderManager {
 
     // ─── Texture View ────────────────────────────────────────────────
 
-    public recordTextureViewCreation(view: object, texture: object, descriptor: any): string {
+    public recordTextureViewCreation(
+        view: object,
+        texture: object,
+        descriptor: GPUTextureViewDescriptor,
+    ): string {
         const id = this.trackObject(view, 'tv');
         const textureId = this._objectIds.get(texture) ?? 'unknown';
         const textureInfo = this._textures.get(textureId);
@@ -266,7 +299,7 @@ export class RecorderManager {
 
     // ─── Sampler ─────────────────────────────────────────────────────
 
-    public recordSamplerCreation(sampler: object, descriptor: any): string {
+    public recordSamplerCreation(sampler: object, descriptor: GPUSamplerDescriptor): string {
         const id = this.trackObject(sampler, 'smp');
         this._samplers.set(id, {
             id,
@@ -287,7 +320,7 @@ export class RecorderManager {
 
     // ─── Shader Module ───────────────────────────────────────────────
 
-    public recordShaderModuleCreation(module: object, descriptor: any): string {
+    public recordShaderModuleCreation(module: object, descriptor: GPUShaderModuleDescriptor): string {
         const id = this.trackObject(module, 'shd');
         this._shaderModules.set(id, {
             id,
@@ -299,11 +332,13 @@ export class RecorderManager {
 
     // ─── Render Pipeline ─────────────────────────────────────────────
 
-    public recordRenderPipelineCreation(pipeline: object, descriptor: any): string {
+    public recordRenderPipelineCreation(
+        pipeline: object,
+        descriptor: GPURenderPipelineDescriptor,
+    ): string {
         const id = this.trackObject(pipeline, 'rp');
         const vertexModuleId = this._resolveId(descriptor?.vertex?.module);
-        const fragmentModule = descriptor?.fragment?.module;
-        const fragmentModuleId = fragmentModule ? this._resolveId(fragmentModule) : undefined;
+        const fragment = descriptor.fragment;
 
         this._renderPipelines.set(id, {
             id,
@@ -315,26 +350,37 @@ export class RecorderManager {
                 moduleId: vertexModuleId,
                 entryPoint: descriptor?.vertex?.entryPoint,
                 buffers: descriptor?.vertex?.buffers
-                    ? serializeDescriptor(descriptor.vertex.buffers) as any
+                    ? serializeDescriptor(
+                        descriptor.vertex.buffers,
+                    ) as unknown as IVertexBufferLayout[]
                     : undefined,
                 constants: descriptor?.vertex?.constants,
             },
-            fragment: fragmentModuleId !== undefined
+            fragment: fragment
                 ? {
-                    moduleId: fragmentModuleId,
-                    entryPoint: descriptor?.fragment?.entryPoint,
-                    targets: (serializeDescriptor(descriptor.fragment.targets) as any) ?? [],
-                    constants: descriptor?.fragment?.constants,
+                    moduleId: this._resolveId(fragment.module),
+                    entryPoint: fragment.entryPoint,
+                    targets:
+                        (serializeDescriptor(
+                            fragment.targets,
+                        ) as unknown as IColorTargetState[]) ?? [],
+                    constants: fragment.constants,
                 }
                 : undefined,
             primitive: descriptor?.primitive
-                ? serializeDescriptor(descriptor.primitive) as any
+                ? serializeDescriptor(
+                    descriptor.primitive,
+                ) as unknown as IRenderPipelineInfo['primitive']
                 : undefined,
             depthStencil: descriptor?.depthStencil
-                ? serializeDescriptor(descriptor.depthStencil) as any
+                ? serializeDescriptor(
+                    descriptor.depthStencil,
+                ) as unknown as IRenderPipelineInfo['depthStencil']
                 : undefined,
             multisample: descriptor?.multisample
-                ? serializeDescriptor(descriptor.multisample) as any
+                ? serializeDescriptor(
+                    descriptor.multisample,
+                ) as unknown as IRenderPipelineInfo['multisample']
                 : undefined,
         });
         return id;
@@ -342,7 +388,10 @@ export class RecorderManager {
 
     // ─── Compute Pipeline ────────────────────────────────────────────
 
-    public recordComputePipelineCreation(pipeline: object, descriptor: any): string {
+    public recordComputePipelineCreation(
+        pipeline: object,
+        descriptor: GPUComputePipelineDescriptor,
+    ): string {
         const id = this.trackObject(pipeline, 'cp');
         const moduleId = this._resolveId(descriptor?.compute?.module);
         this._computePipelines.set(id, {
@@ -362,11 +411,11 @@ export class RecorderManager {
 
     // ─── Bind Group ──────────────────────────────────────────────────
 
-    public recordBindGroupCreation(bindGroup: object, descriptor: any): string {
+    public recordBindGroupCreation(bindGroup: object, descriptor: GPUBindGroupDescriptor): string {
         const id = this.trackObject(bindGroup, 'bg');
         const layoutId = this._resolveId(descriptor?.layout);
 
-        const entries: IBindGroupEntry[] = (descriptor?.entries ?? []).map((entry: any) => {
+        const entries: IBindGroupEntry[] = (descriptor?.entries ?? []).map((entry) => {
             const resource = entry.resource;
 
             // Buffer binding: { buffer: GPUBuffer, offset?, size? }
@@ -409,10 +458,13 @@ export class RecorderManager {
 
     // ─── Bind Group Layout ───────────────────────────────────────────
 
-    public recordBindGroupLayoutCreation(layout: object, descriptor: any): string {
+    public recordBindGroupLayoutCreation(
+        layout: object,
+        descriptor: GPUBindGroupLayoutDescriptor,
+    ): string {
         const id = this.trackObject(layout, 'bgl');
 
-        const entries: IBindGroupLayoutEntry[] = (descriptor?.entries ?? []).map((entry: any) => {
+        const entries: IBindGroupLayoutEntry[] = (descriptor?.entries ?? []).map((entry) => {
             let type: BindGroupLayoutEntryType = 'buffer';
             let desc: Record<string, unknown> = {};
 

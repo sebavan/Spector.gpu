@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SpectorGPU } from '../../src/core/spectorGpu';
-import { SPECTOR_GPU_VERSION } from '../../src/shared/constants';
+import {
+    CAPTURE_FORMAT_VERSION,
+    SPECTOR_GPU_VERSION,
+} from '../../src/shared/constants';
 import { globalIdGenerator } from '../../src/shared/utils';
 import type { ICapture, IAdapterInfo } from '../../src/shared/types';
 import {
@@ -120,6 +123,7 @@ describe('SpectorGPU', () => {
         const capture = spector.stopCapture();
 
         expect(capture).not.toBeNull();
+        expect(capture!.formatVersion).toBe(CAPTURE_FORMAT_VERSION);
         expect(capture!.version).toBe(SPECTOR_GPU_VERSION);
         expect(capture!.commands).toBeDefined();
         expect(capture!.stats).toBeDefined();
@@ -241,7 +245,7 @@ describe('SpectorGPU', () => {
         // Simulate WebGPU frame
         const encoder = device.createCommandEncoder();
         const pass = encoder.beginRenderPass({ colorAttachments: [] });
-        pass.setPipeline({} as any);
+        pass.setPipeline({});
         pass.draw(3);
         pass.end();
         const cmdBuf = encoder.finish();
@@ -263,16 +267,17 @@ describe('SpectorGPU', () => {
         let savedGPUDevice: unknown;
         let savedGPUQueue: unknown;
         let savedGPUCanvasContext: unknown;
+        const mutableGlobal = globalThis as unknown as Record<string, unknown>;
 
         beforeEach(() => {
             // Install class constructors as globals so prototype hooks
             // can install. Same pattern as deviceSpy.test.ts.
-            savedGPUDevice = (globalThis as any).GPUDevice;
-            savedGPUQueue = (globalThis as any).GPUQueue;
-            savedGPUCanvasContext = (globalThis as any).GPUCanvasContext;
-            (globalThis as any).GPUDevice = MockGPUDeviceClass;
-            (globalThis as any).GPUQueue = MockGPUQueueClass;
-            (globalThis as any).GPUCanvasContext = MockGPUCanvasContextClass;
+            savedGPUDevice = mutableGlobal.GPUDevice;
+            savedGPUQueue = mutableGlobal.GPUQueue;
+            savedGPUCanvasContext = mutableGlobal.GPUCanvasContext;
+            mutableGlobal.GPUDevice = MockGPUDeviceClass;
+            mutableGlobal.GPUQueue = MockGPUQueueClass;
+            mutableGlobal.GPUCanvasContext = MockGPUCanvasContextClass;
         });
 
         afterEach(() => {
@@ -283,9 +288,9 @@ describe('SpectorGPU', () => {
                 ['GPUCanvasContext', savedGPUCanvasContext],
             ] as const) {
                 if (saved === undefined) {
-                    delete (globalThis as any)[name];
+                    delete mutableGlobal[name];
                 } else {
-                    (globalThis as any)[name] = saved;
+                    mutableGlobal[name] = saved;
                 }
             }
         });
@@ -329,7 +334,7 @@ describe('SpectorGPU', () => {
             expect(spector.adapterInfo).toBeNull();
 
             // configure() passes the device — our hook captures it
-            ctx.configure({ device: device as any, format: 'bgra8unorm' });
+            ctx.configure({ device, format: 'bgra8unorm' });
 
             // Device should now be discovered
             expect(spector.adapterInfo).not.toBeNull();
@@ -342,7 +347,7 @@ describe('SpectorGPU', () => {
             const ctx = new MockGPUCanvasContextClass();
 
             // configure() captures device reference
-            ctx.configure({ device: device as any, format: 'bgra8unorm' });
+            ctx.configure({ device, format: 'bgra8unorm' });
 
             // Reset device to simulate a fresh init that missed the
             // device (this tests the getCurrentTexture fallback path).
@@ -398,7 +403,7 @@ describe('SpectorGPU', () => {
             // which wires up EncoderSpy on the returned encoder.
             const encoder = device.createCommandEncoder();
             const pass = encoder.beginRenderPass({ colorAttachments: [] });
-            pass.setPipeline({} as any);
+            pass.setPipeline({});
             pass.draw(6);
             pass.end();
             const cmdBuf = encoder.finish();

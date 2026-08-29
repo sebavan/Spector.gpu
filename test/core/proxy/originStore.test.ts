@@ -139,7 +139,7 @@ describe('OriginStore', () => {
 
     it('save skips non-function properties', () => {
         const store = new OriginStore();
-        const obj = { value: 42, name: 'test' } as any;
+        const obj = { value: 42, name: 'test' };
 
         // Should not throw, should not store
         store.save(obj, 'value');

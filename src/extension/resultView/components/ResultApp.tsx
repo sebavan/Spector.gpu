@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { ICapture, ICommandNode } from '@shared/types';
-import { readCapture } from '@shared/utils/captureStorage';
+import { deleteCapture, readCapture } from '@shared/utils/captureStorage';
 import { CommandDetail } from './CommandDetail';
 import { ShaderEditor } from './ShaderEditor';
 import { PipelineInspector } from './PipelineInspector';
@@ -56,10 +56,12 @@ function findNodeById(nodes: readonly ICommandNode[], id: string): ICommandNode 
 
 export function ResultApp() {
     const [capture, setCapture] = useState<ICapture | null>(null);
+    const [storageCaptureId, setStorageCaptureId] = useState<string | null>(null);
     const [selectedNode, setSelectedNode] = useState<ICommandNode | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<CommandTab>('detail');
+    const [deleting, setDeleting] = useState(false);
 
     // Sidebar state
     const [sidebarMode, setSidebarMode] = useState<SidebarMode>('commands');
@@ -140,8 +142,9 @@ export function ResultApp() {
         readCapture(captureId)
             .then(data => {
                 if (data) {
-                    const cap = data as ICapture;
+                    const cap = data;
                     setCapture(cap);
+                    setStorageCaptureId(captureId);
                     const firstNode = cap.commands.length > 0 ? cap.commands[0] : null;
                     setSelectedNode(firstNode);
                     // Replace (not push) initial state so the first back
@@ -219,6 +222,20 @@ export function ResultApp() {
         });
     }, []);
 
+    const handleDeleteCapture = useCallback(async () => {
+        if (!storageCaptureId || deleting) return;
+        setDeleting(true);
+        try {
+            await deleteCapture(storageCaptureId);
+            setCapture(null);
+            setError('Capture deleted from local storage');
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : 'Failed to delete capture');
+        } finally {
+            setDeleting(false);
+        }
+    }, [storageCaptureId, deleting]);
+
     // Resolve the currently selected resource object for the detail panel
     const selectedResource = useMemo(() => {
         if (!capture || !selectedResourceCategory || !selectedResourceId) return null;
@@ -250,7 +267,11 @@ export function ResultApp() {
         <NavigationContext.Provider value={navigateToResource}>
         <CommandNavigationContext.Provider value={navigateToCommand}>
             <div className="result-app">
-                <CaptureHeader capture={capture} />
+                <CaptureHeader
+                    capture={capture}
+                    deleting={deleting}
+                    onDelete={handleDeleteCapture}
+                />
                 <div className="result-content">
                     <div className="left-panel" style={{ width: leftPanelWidth }}>
                         <SidebarPanel

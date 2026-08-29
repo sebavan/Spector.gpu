@@ -4,20 +4,31 @@ Notable changes are documented here. Release details and downloadable extension 
 
 ## Unreleased
 
+## 1.0.0 - 2026-08-29
+
 ### Added
 
 - Stateful MCP server for agent-driven WebGPU capture and inspection
 - MCP resource sorting, limiting, screenshots, and explicit browser cleanup
+- Versioned capture format with compatible loading of pre-1.0 captures
+- Capture deletion from the result viewer
+- Browser, capture-format, MCP, and resource-readback compatibility guarantees
+- Capture performance budgets and a repeatable command-tree benchmark
+- Cross-platform build and test coverage on Ubuntu, Windows, and macOS
+- Build provenance attestations for release artifacts
 
 ### Changed
 
 - MCP responses avoid bulk data unless a specific resource is requested
 - Public documentation, privacy disclosures, contribution guidance, and release packaging
+- Updated root, MCP, build, test, and GitHub Actions dependencies
+- Migrated linting to ESLint flat configuration
 
 ### Fixed
 
 - Command-referenced buffer prioritization and upload-time buffer capture
 - 3D mesh viewer camera framing
+- Popup version now follows the shared release version
 
 ## 0.5.1 - 2026-03-24
 

@@ -112,6 +112,8 @@ export interface ICommandNode {
 /** Complete snapshot of one captured frame. */
 export interface ICapture {
     readonly id: string;
+    /** Version of the serialized ICapture schema. */
+    readonly formatVersion: number;
     /** Spector.GPU semver at time of capture. */
     readonly version: string;
     /** Unix-epoch ms when capture started. */

@@ -257,7 +257,7 @@ function sortAndLimitResources(
 export function createServer(browserMgr: BrowserManager, captureMgr: CaptureManager): McpServer {
     const server = new McpServer({
         name: 'spector-gpu',
-        version: '0.5.1',
+        version: '1.0.0',
     });
 
     const mutex = new AsyncMutex();

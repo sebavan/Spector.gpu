@@ -83,11 +83,15 @@ test.describe('WebGPU Triangle Capture', () => {
 
     test('page keeps rendering after capture', async () => {
         const countBefore = await page.evaluate(
-            () => (window as any).__webgpuFrameCount ?? 0,
+            () => (
+                window as Window & { __webgpuFrameCount?: number }
+            ).__webgpuFrameCount ?? 0,
         );
         await page.waitForTimeout(500);
         const countAfter = await page.evaluate(
-            () => (window as any).__webgpuFrameCount ?? 0,
+            () => (
+                window as Window & { __webgpuFrameCount?: number }
+            ).__webgpuFrameCount ?? 0,
         );
 
         // Render loop must have advanced

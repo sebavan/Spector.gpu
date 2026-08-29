@@ -7,7 +7,12 @@ import { RenderPassSpy } from '@core/spies/renderPassSpy';
 import { ComputePassSpy } from '@core/spies/computePassSpy';
 import { Observable, Logger } from '@shared/utils';
 import { serializeDescriptor } from '@shared/utils/serialization';
-import { SPECTOR_GPU_VERSION, MAX_COMMAND_COUNT, CAPTURE_TIMEOUT_MS } from '@shared/constants';
+import {
+    CAPTURE_FORMAT_VERSION,
+    SPECTOR_GPU_VERSION,
+    MAX_COMMAND_COUNT,
+    CAPTURE_TIMEOUT_MS,
+} from '@shared/constants';
 
 // ─── Static lookup: method name → CommandType ────────────────────────
 // Hoisted to module scope so it's allocated once, not per-call.
@@ -315,6 +320,7 @@ export class CaptureSession {
 
         const capture: ICapture = {
             id: `capture_${Date.now()}`,
+            formatVersion: CAPTURE_FORMAT_VERSION,
             version: SPECTOR_GPU_VERSION,
             timestamp: Date.now(),
             duration,

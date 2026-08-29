@@ -50,6 +50,7 @@ npm run check:versions
 npm run lint
 npm test
 npm run build
+npm run bench:capture
 cd mcp
 npm test
 npm run build
@@ -64,6 +65,8 @@ npm run test:e2e
 Standard hosted CI runners do not provide a reliable WebGPU adapter, including through SwiftShader. CI therefore runs the non-WebGPU extension smoke suite; run the complete WebGPU suite locally or on a GPU-enabled runner.
 
 Real-site tests also require network access. If a GPU, driver, or site limitation prevents an E2E test, describe the environment and exact result in the pull request rather than weakening the test.
+
+The command-tree benchmark is a release-qualification check rather than a shared-runner gate. Compare its result with the budgets in [`spec/performance.md`](spec/performance.md) and record the qualifying hardware.
 
 ## Pull requests
 

@@ -25,6 +25,15 @@ const typesSpec = await readFile(path.join(root, 'spec/types.md'), 'utf8');
 const typesSpecMatch = typesSpec.match(/SPECTOR_GPU_VERSION = '([^']+)'/);
 versionSources.set('spec/types.md', typesSpecMatch?.[1]);
 
+const captureFormatMatch = constantsSource.match(/CAPTURE_FORMAT_VERSION = (\d+)/);
+const captureFormatSpecMatch = typesSpec.match(/CAPTURE_FORMAT_VERSION = (\d+)/);
+if (captureFormatMatch?.[1] !== captureFormatSpecMatch?.[1]) {
+    console.error(
+        'Capture format mismatch between src/shared/constants.ts and spec/types.md.',
+    );
+    process.exitCode = 1;
+}
+
 const serverSource = await readFile(path.join(root, 'mcp/src/index.ts'), 'utf8');
 const serverMatch = serverSource.match(/name: 'spector-gpu',\s+version: '([^']+)'/);
 versionSources.set('mcp/src/index.ts', serverMatch?.[1]);

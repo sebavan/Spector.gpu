@@ -9,6 +9,8 @@ Complete specifications for regenerating the entire Spector.GPU codebase from sc
 | [`architecture.md`](architecture.md) | High-level system architecture, directory structure, key concepts, component diagram |
 | [`types.md`](types.md) | Complete TypeScript type definitions — ICapture, ICommandNode, all resource types, messages, constants, usage flag bitmasks |
 | [`capture-engine.md`](capture-engine.md) | Spy system, method patching, COPY_SRC injection, RecorderManager, capture lifecycle, texture/buffer readback, format conversion |
+| [`capture-format.md`](capture-format.md) | Versioned serialized capture contract and compatibility rules |
+| [`performance.md`](performance.md) | 1.x overhead budgets and release benchmark |
 | [`ui-components.md`](ui-components.md) | React component tree, state management, layout behavior, shader editor, 3D buffer viewer, navigation, WGSL syntax highlighting |
 | [`build-config.md`](build-config.md) | Tech stack, webpack config, TypeScript config, manifest, message flow, storage, SCSS design tokens, icons, npm scripts |
 | [`planning/`](planning/) | Versioned planning documents for each major iteration |

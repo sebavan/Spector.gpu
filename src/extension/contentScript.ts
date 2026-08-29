@@ -15,7 +15,15 @@
 
 import { SpectorGPU } from '../core/spectorGpu';
 import { MessageType } from '../shared/types/messages';
+import type { ICaptureStats } from '../shared/types';
 import { captureToJSON } from '../shared/utils/serialization';
+
+declare global {
+    interface Window {
+        __lastCaptureStats?: ICaptureStats;
+        __spectorGpuInstance?: SpectorGPU;
+    }
+}
 
 const SPECTOR_GPU_PREFIX = 'SPECTOR_GPU_';
 
@@ -52,7 +60,7 @@ function init(): void {
         });
 
         // Expose last capture stats for E2E test verification
-        (window as any).__lastCaptureStats = capture.stats;
+        window.__lastCaptureStats = capture.stats;
     });
 
     spectorGpu.onCaptureError.add(({ error }) => {
@@ -67,7 +75,7 @@ function init(): void {
     spectorGpu.init();
 
     // Expose instance for E2E test access (Playwright reads this via page.evaluate)
-    (window as any).__spectorGpuInstance = spectorGpu;
+    window.__spectorGpuInstance = spectorGpu;
 
     // ── Listen for commands from extension (via ISOLATED proxy) ──────
 

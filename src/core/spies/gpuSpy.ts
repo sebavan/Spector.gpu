@@ -2,6 +2,8 @@ import { Observable } from '@shared/utils';
 import { Logger } from '@shared/utils/logger';
 import type { IAdapterInfo } from '@shared/types';
 
+type AdapterWithInfo = GPUAdapter & { readonly info?: IAdapterInfo };
+
 /**
  * Intercepts `navigator.gpu.requestAdapter()` to detect adapter creation,
  * AND wraps `requestDevice` on every returned adapter so that device
@@ -140,33 +142,28 @@ export class GpuSpy {
      */
     private _wrapRequestDevice(adapter: GPUAdapter): void {
         const self = this;
-        // Cast through `any` because GPUAdapter lacks an index signature
-        // and TypeScript won't allow Record<string, unknown> cast directly.
-        const adapterAny = adapter as any;
-        const origRD = adapterAny.requestDevice;
-        if (typeof origRD !== 'function') return;
-
         // Bind to the real adapter — critical for WebGPU internal slot checks.
-        const boundRD = origRD.bind(adapter);
+        const boundRD = adapter.requestDevice.bind(adapter);
 
-        adapterAny.requestDevice = async function (
+        adapter.requestDevice = async function (
             ...args: unknown[]
         ): Promise<GPUDevice> {
-            const device = await boundRD(...args);
+            const device = await Reflect.apply(boundRD, adapter, args);
             if (device) {
-                self.onDeviceCreated.trigger(device as GPUDevice);
+                self.onDeviceCreated.trigger(device);
             }
-            return device as GPUDevice;
+            return device;
         };
     }
 
     private _handleAdapterCreated(adapter: GPUAdapter): void {
+        const adapterInfo = (adapter as AdapterWithInfo).info;
         const info: IAdapterInfo = {
-            vendor: (adapter as any).info?.vendor ?? '',
-            architecture: (adapter as any).info?.architecture ?? '',
-            device: (adapter as any).info?.device ?? '',
-            description: (adapter as any).info?.description ?? '',
-            backend: (adapter as any).info?.backend ?? '',
+            vendor: adapterInfo?.vendor ?? '',
+            architecture: adapterInfo?.architecture ?? '',
+            device: adapterInfo?.device ?? '',
+            description: adapterInfo?.description ?? '',
+            backend: adapterInfo?.backend ?? '',
         };
         Logger.info('Adapter created:', info.description || info.vendor);
         this.onAdapterCreated.trigger({ adapter, info });

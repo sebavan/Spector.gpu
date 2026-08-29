@@ -23,7 +23,7 @@ body:
     id: version
     attributes:
       label: Spector.GPU version
-      placeholder: v0.5.1 or commit SHA
+      placeholder: v1.0.0 or commit SHA
     validations:
       required: true
   - type: textarea

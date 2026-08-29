@@ -64,7 +64,9 @@ test.describe('Babylon.js Playground Capture', () => {
             for (const frame of page.frames()) {
                 try {
                     const hasDevice = await frame.evaluate(() => {
-                        const s = (window as any).__spectorGpuInstance;
+                        const s = window.__spectorGpuInstance as unknown as {
+                            _device?: unknown;
+                        };
                         return s?._device != null;
                     });
                     if (hasDevice) {
@@ -86,14 +88,14 @@ test.describe('Babylon.js Playground Capture', () => {
         }
 
         const spectorActive = await targetFrame.evaluate(() => {
-            return !!(window as any).__spectorGpuInstance;
+            return !!window.__spectorGpuInstance;
         });
         expect(spectorActive, 'Spector.GPU not injected').toBe(true);
 
         // ── Verify WebGPU detected (adapter hook fired) ──────────────
 
         const detected = await targetFrame.evaluate(() => {
-            const s = (window as any).__spectorGpuInstance;
+            const s = window.__spectorGpuInstance;
             return s?.adapterInfo != null;
         });
         expect(detected, 'WebGPU adapter not detected').toBe(true);
@@ -106,13 +108,13 @@ test.describe('Babylon.js Playground Capture', () => {
                     () => reject(new Error('Capture timed out after 15s')),
                     15_000,
                 );
-                const s = (window as any).__spectorGpuInstance;
+                const s = window.__spectorGpuInstance;
                 if (!s) {
                     reject(new Error('No Spector.GPU instance'));
                     return;
                 }
 
-                s.onCaptureComplete.add((capture: any) => {
+                s.onCaptureComplete.add((capture) => {
                     clearTimeout(timeout);
                     resolve({
                         drawCalls: capture.stats.drawCalls,
@@ -126,7 +128,7 @@ test.describe('Babylon.js Playground Capture', () => {
                         textureCount: capture.stats.textureCount,
                     });
                 });
-                s.onCaptureError.add(({ error }: any) => {
+                s.onCaptureError.add(({ error }) => {
                     clearTimeout(timeout);
                     reject(error instanceof Error ? error : new Error(String(error)));
                 });

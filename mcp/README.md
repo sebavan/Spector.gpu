@@ -78,6 +78,10 @@ Agent: show me buffer buf_21 data
 - The server can read page-rendered GPU resources and take screenshots. Only navigate to applications and data you are authorized to inspect.
 - MCP clients receive capture details in tool responses. Their own retention and data-handling policies apply after that point.
 
+## Compatibility
+
+The 1.x server keeps existing tool names and required inputs stable. Minor releases may add tools, optional inputs, and output fields; removals or semantic changes require a major release. Deprecations remain documented for at least one minor release. Clients should ignore unknown output fields and branch on `isError` instead of exact error strings. See the repository [compatibility policy](../COMPATIBILITY.md).
+
 ## Troubleshooting
 
 - **"Content script not found"**: Run `npm run build` in the Spector.GPU root first

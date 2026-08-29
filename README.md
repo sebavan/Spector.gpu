@@ -9,7 +9,7 @@
 
 Spector.GPU is the WebGPU-era successor to [Spector.js](https://github.com/BabylonJS/Spector.js). It records a frame's command hierarchy, shaders, pipelines, bind groups, buffers, textures, and visual outputs without requiring changes to the inspected application.
 
-> **Project status:** Preview (`0.x`). The extension is usable today, but the capture format and automation APIs may evolve before `1.0`.
+> **Project status:** Stable (`1.x`). Capture format 1 and the documented MCP tool contracts follow the [compatibility policy](COMPATIBILITY.md).
 
 ![Spector.GPU result viewer showing a captured WebGPU frame](docs/images/result-view.png)
 
@@ -51,7 +51,7 @@ Load the generated `dist/` directory as an unpacked extension.
 3. Open the extension and choose **Capture Frame**.
 4. Inspect the capture in the result viewer that opens automatically.
 
-Captures can include application shaders, GPU resource contents, labels, and screenshots. They remain in local extension storage; see [Privacy](PRIVACY.md) for the complete data-handling and permission explanation.
+Captures can include application shaders, GPU resource contents, labels, and screenshots. They remain in local extension storage until deleted from the result viewer or browser settings; see [Privacy](PRIVACY.md) for the complete data-handling and permission explanation.
 
 ### 30-second walkthrough
 
@@ -131,7 +131,11 @@ The MCP package has its own `npm ci`, `npm test`, and `npm run build` commands u
 | [API types](spec/types.md) | Capture, command, resource, and message types |
 | [Result viewer](spec/ui-components.md) | React component tree and interaction design |
 | [Build configuration](spec/build-config.md) | Webpack, manifest, storage, and message flow |
-| [Roadmap](ROADMAP.md) | Shareout and pre-`1.0` priorities |
+| [Capture format](spec/capture-format.md) | Stable serialized schema and reader compatibility |
+| [Compatibility](COMPATIBILITY.md) | Browser, capture-format, MCP, and readback guarantees |
+| [Performance budgets](spec/performance.md) | 1.x overhead targets and benchmark |
+| [1.0 qualification](docs/release-qualification-1.0.md) | GPU, browser, test, and benchmark results |
+| [Roadmap](ROADMAP.md) | Post-1.0 priorities |
 | [Changelog](CHANGELOG.md) | Released and unreleased changes |
 
 ## Community and support

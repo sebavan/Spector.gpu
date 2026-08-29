@@ -8,6 +8,13 @@ updates:
       root-dependencies:
         patterns:
           - "*"
+    ignore:
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
+      - dependency-name: jsdom
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: npm
     directory: /mcp
     schedule:
@@ -16,6 +23,10 @@ updates:
       mcp-dependencies:
         patterns:
           - "*"
+    ignore:
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: github-actions
     directory: /
     schedule:

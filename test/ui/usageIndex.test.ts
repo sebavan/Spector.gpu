@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { buildUsageIndex } from '@extension/resultView/usageIndex';
-import type { ICapture, ICommandNode, CommandType } from '@shared/types';
+import type {
+    IBindGroupInfo,
+    ICapture,
+    ICommandNode,
+    CommandType,
+    IRenderPipelineInfo,
+} from '@shared/types';
 
 // ─── Test helpers ────────────────────────────────────────────────────
 
@@ -20,6 +26,7 @@ function makeCommand(
 function emptyCapture(commands: ICommandNode[]): ICapture {
     return {
         id: 'test',
+        formatVersion: 1,
         version: '0.0.0',
         timestamp: 0,
         duration: 0,
@@ -199,7 +206,7 @@ describe('buildUsageIndex', () => {
 
     it('indexes resource-to-resource references (render pipeline → shader module)', () => {
         const capture = emptyCapture([]);
-        (capture.resources.renderPipelines as Map<string, any>).set('rp_0', {
+        (capture.resources.renderPipelines as Map<string, IRenderPipelineInfo>).set('rp_0', {
             id: 'rp_0',
             label: 'MainPipeline',
             layout: 'auto',
@@ -221,7 +228,7 @@ describe('buildUsageIndex', () => {
 
     it('indexes bind group entries (bind group → buffer/texture view)', () => {
         const capture = emptyCapture([]);
-        (capture.resources.bindGroups as Map<string, any>).set('bg_0', {
+        (capture.resources.bindGroups as Map<string, IBindGroupInfo>).set('bg_0', {
             id: 'bg_0',
             label: 'SceneBindGroup',
             layoutId: 'bgl_0',
@@ -285,8 +292,9 @@ describe('buildUsageIndex', () => {
             },
         });
         const capture = emptyCapture([drawCmd, writeCmd]);
-        (capture.resources.bindGroups as Map<string, any>).set('bg_0', {
+        (capture.resources.bindGroups as Map<string, IBindGroupInfo>).set('bg_0', {
             id: 'bg_0',
+            layoutId: 'bgl_0',
             entries: [{ binding: 0, resourceType: 'buffer', resourceId: 'buf_0' }],
         });
         const index = buildUsageIndex(capture);

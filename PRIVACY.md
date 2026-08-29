@@ -22,7 +22,7 @@ The browser extension:
 - Stores completed captures in `chrome.storage.local` on your device
 - Does not send captures, browsing activity, analytics, or telemetry to the project maintainer or any project-operated service
 - Does not sell, share, or use captured data for advertising
-- Retains captures until extension storage is cleared or the extension is removed
+- Retains captures until the user deletes them from the result viewer, clears extension storage, or removes the extension
 
 Chrome synchronization is not used. Browser, operating-system, backup, and enterprise-management behavior remains governed by those providers and your local configuration.
 
@@ -51,7 +51,7 @@ After tool output reaches an MCP client or model provider, that service's privac
 
 ## Your controls
 
-You can stop using Spector.GPU, clear its storage from the browser's extension settings, disable access for specific sites, disable file URL access, or uninstall the extension. The project maintainer cannot retrieve or delete data stored only on your device.
+You can delete the current capture from its result viewer, clear all extension storage from the browser's extension settings, disable access for specific sites, disable file URL access, or uninstall the extension. The project maintainer cannot retrieve or delete data stored only on your device.
 
 ## Changes and contact
 

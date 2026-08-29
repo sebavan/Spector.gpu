@@ -11,6 +11,8 @@
  *                     [captureId + '_chunk_0']: str0,
  *                     [captureId + '_chunk_1']: str1, ... }
  */
+import type { ICapture } from '../types';
+import { normalizeCapture } from './captureFormat';
 
 const CHUNK_SIZE = 4 * 1024 * 1024; // 4 MB
 
@@ -19,11 +21,11 @@ const CHUNK_SIZE = 4 * 1024 * 1024; // 4 MB
  * Handles both direct and chunked storage transparently.
  * Returns the parsed capture object, or null if not found.
  */
-export async function readCapture(captureId: string): Promise<unknown | null> {
+export async function readCapture(captureId: string): Promise<ICapture | null> {
     // Fast path: try direct (non-chunked) lookup first.
     const direct = await chrome.storage.local.get(captureId);
     if (direct[captureId]) {
-        return JSON.parse(direct[captureId] as string);
+        return normalizeCapture(JSON.parse(direct[captureId] as string));
     }
 
     // Slow path: chunked storage.
@@ -49,7 +51,7 @@ export async function readCapture(captureId: string): Promise<unknown | null> {
         parts.push(chunk);
     }
 
-    return JSON.parse(parts.join(''));
+    return normalizeCapture(JSON.parse(parts.join('')));
 }
 
 /**

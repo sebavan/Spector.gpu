@@ -132,7 +132,12 @@ export class DeviceSpy {
                 }
             },
             after(methodName, args, result) {
-                if (result) rm.recordBufferCreation(result as object, args[0]);
+                if (result) {
+                    rm.recordBufferCreation(
+                        result as object,
+                        args[0] as GPUBufferDescriptor,
+                    );
+                }
                 cb.onCommand?.(methodName, [...args], result);
             },
         });
@@ -153,7 +158,12 @@ export class DeviceSpy {
             },
             after(methodName, args, result) {
                 if (result) {
-                    rm.recordTextureCreation(result as object, args[0]);
+                    rm.recordTextureCreation(
+                        result as object,
+                        args[0] as Parameters<
+                            RecorderManager['recordTextureCreation']
+                        >[1],
+                    );
                     self.patchTextureCreateView(result as GPUTexture);
                 }
                 cb.onCommand?.(methodName, [...args], result);
@@ -164,7 +174,12 @@ export class DeviceSpy {
         globalOriginStore.save(device, 'createSampler');
         patchMethod(device, 'createSampler', {
             after(methodName, args, result) {
-                if (result) rm.recordSamplerCreation(result as object, args[0] ?? {});
+                if (result) {
+                    rm.recordSamplerCreation(
+                        result as object,
+                        (args[0] ?? {}) as GPUSamplerDescriptor,
+                    );
+                }
                 cb.onCommand?.(methodName, [...args], result);
             },
         });
@@ -173,7 +188,12 @@ export class DeviceSpy {
         globalOriginStore.save(device, 'createShaderModule');
         patchMethod(device, 'createShaderModule', {
             after(methodName, args, result) {
-                if (result) rm.recordShaderModuleCreation(result as object, args[0]);
+                if (result) {
+                    rm.recordShaderModuleCreation(
+                        result as object,
+                        args[0] as GPUShaderModuleDescriptor,
+                    );
+                }
                 cb.onCommand?.(methodName, [...args], result);
             },
         });
@@ -182,7 +202,12 @@ export class DeviceSpy {
         globalOriginStore.save(device, 'createRenderPipeline');
         patchMethod(device, 'createRenderPipeline', {
             after(methodName, args, result) {
-                if (result) rm.recordRenderPipelineCreation(result as object, args[0]);
+                if (result) {
+                    rm.recordRenderPipelineCreation(
+                        result as object,
+                        args[0] as GPURenderPipelineDescriptor,
+                    );
+                }
                 cb.onCommand?.(methodName, [...args], result);
             },
         });
@@ -192,7 +217,12 @@ export class DeviceSpy {
         patchMethod(device, 'createRenderPipelineAsync', {
             isAsync: true,
             afterResolve(methodName, args, result) {
-                if (result) rm.recordRenderPipelineCreation(result as object, args[0]);
+                if (result) {
+                    rm.recordRenderPipelineCreation(
+                        result as object,
+                        args[0] as GPURenderPipelineDescriptor,
+                    );
+                }
                 cb.onCommand?.(methodName, [...args], result);
             },
         });
@@ -201,7 +231,12 @@ export class DeviceSpy {
         globalOriginStore.save(device, 'createComputePipeline');
         patchMethod(device, 'createComputePipeline', {
             after(methodName, args, result) {
-                if (result) rm.recordComputePipelineCreation(result as object, args[0]);
+                if (result) {
+                    rm.recordComputePipelineCreation(
+                        result as object,
+                        args[0] as GPUComputePipelineDescriptor,
+                    );
+                }
                 cb.onCommand?.(methodName, [...args], result);
             },
         });
@@ -211,7 +246,12 @@ export class DeviceSpy {
         patchMethod(device, 'createComputePipelineAsync', {
             isAsync: true,
             afterResolve(methodName, args, result) {
-                if (result) rm.recordComputePipelineCreation(result as object, args[0]);
+                if (result) {
+                    rm.recordComputePipelineCreation(
+                        result as object,
+                        args[0] as GPUComputePipelineDescriptor,
+                    );
+                }
                 cb.onCommand?.(methodName, [...args], result);
             },
         });
@@ -220,7 +260,12 @@ export class DeviceSpy {
         globalOriginStore.save(device, 'createBindGroup');
         patchMethod(device, 'createBindGroup', {
             after(methodName, args, result) {
-                if (result) rm.recordBindGroupCreation(result as object, args[0]);
+                if (result) {
+                    rm.recordBindGroupCreation(
+                        result as object,
+                        args[0] as GPUBindGroupDescriptor,
+                    );
+                }
                 cb.onCommand?.(methodName, [...args], result);
             },
         });
@@ -229,7 +274,12 @@ export class DeviceSpy {
         globalOriginStore.save(device, 'createBindGroupLayout');
         patchMethod(device, 'createBindGroupLayout', {
             after(methodName, args, result) {
-                if (result) rm.recordBindGroupLayoutCreation(result as object, args[0]);
+                if (result) {
+                    rm.recordBindGroupLayoutCreation(
+                        result as object,
+                        args[0] as GPUBindGroupLayoutDescriptor,
+                    );
+                }
                 cb.onCommand?.(methodName, [...args], result);
             },
         });
@@ -268,7 +318,7 @@ export class DeviceSpy {
         }
 
         this.onDeviceCreated.trigger(device);
-        Logger.info('Device spy installed on:', (device as any).label || 'unlabeled device');
+        Logger.info('Device spy installed on:', device.label || 'unlabeled device');
     }
 
     public patchTextureCreateView(texture: GPUTexture): void {
@@ -280,7 +330,13 @@ export class DeviceSpy {
             globalOriginStore.save(texture, 'createView');
             patchMethod(texture, 'createView', {
                 after(_methodName, args, result) {
-                    if (result) rm.recordTextureViewCreation(result as object, texture, args[0] ?? {});
+                    if (result) {
+                        rm.recordTextureViewCreation(
+                            result as object,
+                            texture,
+                            (args[0] ?? {}) as GPUTextureViewDescriptor,
+                        );
+                    }
                 },
             });
         }

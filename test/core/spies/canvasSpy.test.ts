@@ -39,17 +39,20 @@ describe('CanvasSpy', () => {
         const nativeGetContext = HTMLCanvasElement.prototype.getContext;
         let thirdPartyCallCount = 0;
 
-        HTMLCanvasElement.prototype.getContext = function (
+        HTMLCanvasElement.prototype.getContext = (function (
             this: HTMLCanvasElement,
             contextId: string,
-            ...rest: any[]
+            ...rest: unknown[]
         ): RenderingContext | null {
             thirdPartyCallCount++;
             // Third-party wrapper calls through to whatever is on the prototype
             // at the time — this is the pattern that causes recursion if not guarded.
             // Simulate by calling the "saved" original (which is the native).
-            return nativeGetContext.call(this, contextId, ...rest);
-        } as any;
+            return Reflect.apply(nativeGetContext, this, [
+                contextId,
+                ...rest,
+            ]) as RenderingContext | null;
+        }) as unknown as HTMLCanvasElement['getContext'];
 
         // Now install our spy ON TOP of the third-party patch
         spy.install();
@@ -70,10 +73,10 @@ describe('CanvasSpy', () => {
         const nativeGetContext = HTMLCanvasElement.prototype.getContext;
         let thirdPartyCallCount = 0;
 
-        HTMLCanvasElement.prototype.getContext = function (
+        HTMLCanvasElement.prototype.getContext = (function (
             this: HTMLCanvasElement,
             contextId: string,
-            ...rest: any[]
+            ...rest: unknown[]
         ): RenderingContext | null {
             thirdPartyCallCount++;
             if (thirdPartyCallCount > 5) {
@@ -82,8 +85,11 @@ describe('CanvasSpy', () => {
             // BAD PATTERN: calls this.getContext which goes through the prototype
             // chain again — hitting our wrapper, which calls this wrapper, etc.
             // Our reentrancy guard must break this cycle.
-            return nativeGetContext.call(this, contextId, ...rest);
-        } as any;
+            return Reflect.apply(nativeGetContext, this, [
+                contextId,
+                ...rest,
+            ]) as RenderingContext | null;
+        }) as unknown as HTMLCanvasElement['getContext'];
 
         spy.install();
 

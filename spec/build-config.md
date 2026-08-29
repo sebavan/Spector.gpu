@@ -6,14 +6,14 @@ Everything needed to set up the project from scratch.
 
 | Layer | Technology | Version |
 |-------|-----------|---------|
-| Language | TypeScript | ^5.4 |
+| Language | TypeScript | ^6.0 |
 | UI Framework | React | ^19.0 |
 | 3D Engine | @babylonjs/core | ^9.0 (lazy-loaded) |
 | Build | Webpack 5 | ^5.90 |
 | CSS | SASS/SCSS | ^1.71 |
-| Testing | Vitest + jsdom | ^1.3 |
-| E2E | Playwright | ^1.58 |
-| Linting | ESLint + TS-ESLint | ^8.56 / ^7.0 |
+| Testing | Vitest 4 + jsdom 29 | ^4.1 / ^29.1 |
+| E2E | Playwright | ^1.62 |
+| Linting | ESLint + TS-ESLint | ^10.9 / ^8.68 |
 | Extension | Chrome Manifest V3 | — |
 | Types | @webgpu/types | ^0.1.69 |
 
@@ -91,6 +91,7 @@ Captures stored in `chrome.storage.local`:
   { [captureId + '_chunk_0']: str0, ... }
   ```
 - `unlimitedStorage` permission removes the 10MB quota
+- The result viewer exposes a two-step delete control that removes both direct and chunked capture keys
 
 ## Testing Config
 

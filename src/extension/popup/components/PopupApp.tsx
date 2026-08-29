@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { MessageType } from '../../../shared/types/messages';
 import type { IStatusResponse } from '../../../shared/types/messages';
+import { SPECTOR_GPU_VERSION } from '../../../shared/constants';
 
 export function PopupApp(): React.JSX.Element {
     const [status, setStatus] = useState<IStatusResponse | null>(null);
@@ -126,7 +127,7 @@ export function PopupApp(): React.JSX.Element {
             </div>
 
             <div className="popup-footer">
-                <span>Spector.GPU v0.1.0</span>
+                <span>Spector.GPU v{SPECTOR_GPU_VERSION}</span>
             </div>
         </div>
     );

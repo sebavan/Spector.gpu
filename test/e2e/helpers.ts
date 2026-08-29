@@ -157,7 +157,7 @@ export async function captureFrame(
     // Single evaluate call: install listener -> trigger -> await result.
     // page.evaluate() auto-awaits the returned Promise.
     return page.evaluate((ms: number) => {
-        return new Promise<any>((resolve, reject) => {
+        return new Promise<CaptureResult>((resolve, reject) => {
             const timer = setTimeout(
                 () => reject(new Error('Capture timed out')),
                 ms,
@@ -201,13 +201,13 @@ export async function captureFrameWithData(
     timeout = 15_000,
 ): Promise<FullCaptureResult> {
     return page.evaluate((ms: number) => {
-        return new Promise<any>((resolve, reject) => {
+        return new Promise<FullCaptureResult>((resolve, reject) => {
             const timer = setTimeout(
                 () => reject(new Error('Capture timed out')),
                 ms,
             );
 
-            let captureData: any = null;
+            let captureData: SerializedCapture | null = null;
 
             function onMessage(event: MessageEvent): void {
                 const d = event.data;
@@ -215,7 +215,7 @@ export async function captureFrameWithData(
 
                 if (d.type === 'SPECTOR_GPU_CAPTURE_DATA') {
                     try {
-                        captureData = JSON.parse(d.payload.data);
+                        captureData = JSON.parse(d.payload.data) as SerializedCapture;
                     } catch (_e) {
                         // data not parseable — will be null
                     }
@@ -224,6 +224,10 @@ export async function captureFrameWithData(
                 if (d.type === 'SPECTOR_GPU_CAPTURE_COMPLETE') {
                     clearTimeout(timer);
                     window.removeEventListener('message', onMessage);
+                    if (!captureData) {
+                        reject(new Error('Capture data missing'));
+                        return;
+                    }
                     resolve({
                         captureId: d.payload.captureId,
                         stats: d.payload.stats,

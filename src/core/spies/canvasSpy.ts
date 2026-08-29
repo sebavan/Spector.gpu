@@ -18,8 +18,8 @@ export class CanvasSpy {
     }>();
 
     private _installed = false;
-    private _originalGetContext: Function | null = null;
-    private _originalOffscreenGetContext: Function | null = null;
+    private _originalGetContext: HTMLCanvasElement['getContext'] | null = null;
+    private _originalOffscreenGetContext: OffscreenCanvas['getContext'] | null = null;
 
     public install(): void {
         if (this._installed) return;
@@ -35,17 +35,23 @@ export class CanvasSpy {
             this._originalGetContext = HTMLCanvasElement.prototype.getContext;
             const origGetContext = this._originalGetContext;
 
-            HTMLCanvasElement.prototype.getContext = function (
+            HTMLCanvasElement.prototype.getContext = (function (
                 this: HTMLCanvasElement,
                 contextId: string,
-                ...rest: any[]
+                ...rest: unknown[]
             ): RenderingContext | null {
                 if (inGetContext) {
-                    return origGetContext.call(this, contextId, ...rest);
+                    return Reflect.apply(origGetContext, this, [
+                        contextId,
+                        ...rest,
+                    ]) as RenderingContext | null;
                 }
                 inGetContext = true;
                 try {
-                    const result = origGetContext.call(this, contextId, ...rest);
+                    const result = Reflect.apply(origGetContext, this, [
+                        contextId,
+                        ...rest,
+                    ]) as RenderingContext | null;
                     if (contextId === 'webgpu' && result) {
                         Logger.info('WebGPU context created on canvas');
                         self.onWebGPUContextCreated.trigger({
@@ -57,7 +63,7 @@ export class CanvasSpy {
                 } finally {
                     inGetContext = false;
                 }
-            } as any;
+            }) as unknown as HTMLCanvasElement['getContext'];
         }
 
         // Patch OffscreenCanvas.prototype.getContext if available
@@ -65,17 +71,23 @@ export class CanvasSpy {
             this._originalOffscreenGetContext = OffscreenCanvas.prototype.getContext;
             const origOffscreen = this._originalOffscreenGetContext;
 
-            OffscreenCanvas.prototype.getContext = function (
+            OffscreenCanvas.prototype.getContext = (function (
                 this: OffscreenCanvas,
                 contextId: string,
-                ...rest: any[]
+                ...rest: unknown[]
             ): OffscreenRenderingContext | null {
                 if (inGetContext) {
-                    return origOffscreen.call(this, contextId, ...rest);
+                    return Reflect.apply(origOffscreen, this, [
+                        contextId,
+                        ...rest,
+                    ]) as OffscreenRenderingContext | null;
                 }
                 inGetContext = true;
                 try {
-                    const result = origOffscreen.call(this, contextId, ...rest);
+                    const result = Reflect.apply(origOffscreen, this, [
+                        contextId,
+                        ...rest,
+                    ]) as OffscreenRenderingContext | null;
                     if (contextId === 'webgpu' && result) {
                         Logger.info('WebGPU context created on OffscreenCanvas');
                         self.onWebGPUContextCreated.trigger({
@@ -87,7 +99,7 @@ export class CanvasSpy {
                 } finally {
                     inGetContext = false;
                 }
-            } as any;
+            }) as unknown as OffscreenCanvas['getContext'];
         }
 
         this._installed = true;
@@ -98,10 +110,10 @@ export class CanvasSpy {
         if (!this._installed) return;
 
         if (this._originalGetContext && typeof HTMLCanvasElement !== 'undefined') {
-            HTMLCanvasElement.prototype.getContext = this._originalGetContext as any;
+            HTMLCanvasElement.prototype.getContext = this._originalGetContext;
         }
         if (this._originalOffscreenGetContext && typeof OffscreenCanvas !== 'undefined') {
-            OffscreenCanvas.prototype.getContext = this._originalOffscreenGetContext as any;
+            OffscreenCanvas.prototype.getContext = this._originalOffscreenGetContext;
         }
 
         this.onWebGPUContextCreated.clear();

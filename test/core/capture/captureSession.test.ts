@@ -5,7 +5,10 @@ import { QueueSpy } from '../../../src/core/spies/queueSpy';
 import { EncoderSpy } from '../../../src/core/spies/encoderSpy';
 import { RenderPassSpy } from '../../../src/core/spies/renderPassSpy';
 import { ComputePassSpy } from '../../../src/core/spies/computePassSpy';
-import { SPECTOR_GPU_VERSION } from '../../../src/shared/constants';
+import {
+    CAPTURE_FORMAT_VERSION,
+    SPECTOR_GPU_VERSION,
+} from '../../../src/shared/constants';
 import { CommandType } from '../../../src/shared/types';
 import type { ICapture } from '../../../src/shared/types';
 import { globalIdGenerator } from '../../../src/shared/utils';
@@ -92,6 +95,7 @@ describe('CaptureSession', () => {
 
         expect(capture).not.toBeNull();
         expect(capture.id).toMatch(/^capture_\d+$/);
+        expect(capture.formatVersion).toBe(CAPTURE_FORMAT_VERSION);
         expect(capture.version).toBe(SPECTOR_GPU_VERSION);
         expect(capture.timestamp).toBeGreaterThan(0);
         expect(capture.duration).toBeGreaterThanOrEqual(0);

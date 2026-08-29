@@ -10,7 +10,7 @@ function makeFakeGPUObject() {
         [secret]: true,
         /** Simulates a brand-checked method: throws if `this` is wrong. */
         draw(vertexCount: number, instanceCount: number): string {
-            if (!(this as any)[secret]) {
+            if (!this[secret]) {
                 throw new TypeError('Illegal invocation (brand check failed)');
             }
             return `draw:${vertexCount}:${instanceCount}`;
@@ -147,14 +147,14 @@ describe('patchMethod', () => {
 
         patchMethod(obj, 'explode', { after: afterSpy });
 
-        expect(() => (obj as any).explode()).toThrow('GPU lost');
+        expect(() => obj.explode()).toThrow('GPU lost');
 
         expect(afterSpy).toHaveBeenCalledOnce();
         expect(afterSpy).toHaveBeenCalledWith('explode', [], undefined, obj);
     });
 
     it('logs warning and does not crash when patching a non-function', () => {
-        const obj = { value: 42 } as any;
+        const obj = { value: 42 };
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
         // Should not throw
