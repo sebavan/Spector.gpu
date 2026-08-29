@@ -29,13 +29,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.0",
-    "playwright": "^1.58.0",
-    "zod": "^3.25.0"
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "playwright": "^1.62.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "typescript": "^5.4.0",
+    "@types/node": "^26.3.0",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   }
 }
