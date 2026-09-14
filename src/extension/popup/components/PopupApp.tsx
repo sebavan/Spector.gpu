@@ -108,6 +108,19 @@ export function PopupApp(): React.JSX.Element {
                     </div>
                 )}
 
+                <div className="capture-disclosure">
+                    A capture stores WebGPU commands, shaders, GPU resource contents,
+                    and a frame image locally until you delete it.
+                    {' '}
+                    <a
+                        href="https://github.com/sebavan/Spector.gpu/blob/main/PRIVACY.md"
+                        rel="noreferrer"
+                        target="_blank"
+                    >
+                        Privacy details
+                    </a>
+                </div>
+
                 {/* Capture button */}
                 <button
                     className="capture-btn"

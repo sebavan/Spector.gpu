@@ -4,10 +4,8 @@
     "version": "1.0.0",
     "description": "Capture and inspect WebGPU frames on any website",
     "permissions": [
-        "activeTab",
         "storage",
-        "unlimitedStorage",
-        "scripting"
+        "unlimitedStorage"
     ],
     "host_permissions": [
         "http://*/*",
