@@ -146,6 +146,19 @@ body {
     }
 }
 
+// ─── Capture disclosure ──────────────────────────────────────────────
+.capture-disclosure {
+    color: $text-secondary;
+    font-size: 11px;
+    line-height: 1.45;
+
+    a {
+        color: $accent;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+    }
+}
+
 // ─── Hint text ───────────────────────────────────────────────────────
 .hint {
     font-size: 11px;

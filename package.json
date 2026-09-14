@@ -38,7 +38,9 @@
     "test:e2e:debug": "npx playwright test --debug",
     "bench:capture": "vitest bench --run test/performance/capturePerformance.bench.ts",
     "check:versions": "node tools/check-versions.mjs",
-    "docs:screenshot": "node tools/generate-readme-screenshot.mjs"
+    "docs:screenshot": "node tools/generate-readme-screenshot.mjs",
+    "store:assets": "node tools/generate-store-assets.mjs",
+    "store:package": "npm run build && npm run store:assets && node tools/package-store-extension.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

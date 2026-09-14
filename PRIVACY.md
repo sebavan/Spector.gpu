@@ -26,12 +26,16 @@ The browser extension:
 
 Chrome synchronization is not used. Browser, operating-system, backup, and enterprise-management behavior remains governed by those providers and your local configuration.
 
+## Chrome Web Store Limited Use disclosure
+
+Spector.GPU's use of information received from Chrome APIs complies with the Chrome Web Store User Data Policy, including the Limited Use requirements. The extension handles website content only to provide the user-requested WebGPU frame capture and inspection feature. It does not transfer that data to the developer or third parties, use it for advertising, sell it, use it for creditworthiness or lending, or allow humans to read it.
+
+The extension does not download or execute remote extension code. All executable extension code is included in the installed package.
+
 ## Why permissions are required
 
 | Permission | Purpose |
 |---|---|
-| `activeTab` | Coordinate capture with the tab selected by the user |
-| `scripting` | Inject the WebGPU interception code early enough to observe resource creation |
 | `storage` and `unlimitedStorage` | Store captures that can exceed normal extension quotas |
 | `http://*/*`, `https://*/*`, `file://*/*` | Detect WebGPU and capture frames across development sites, hosted applications, iframes, and user-enabled local files |
 
