@@ -11,11 +11,14 @@ Everything needed to set up the project from scratch.
 | 3D Engine | @babylonjs/core | ^9.0 (lazy-loaded) |
 | Build | Webpack 5 | ^5.90 |
 | CSS | SASS/SCSS | ^1.71 |
-| Testing | Vitest 4 + jsdom 29 | ^4.1 / ^29.1 |
-| E2E | Playwright | ^1.62 |
-| Linting | ESLint + TS-ESLint | ^10.9 / ^8.68 |
+| Testing | Vitest 5 + jsdom 29 | ^5.0 / ^29.1 |
+| E2E | Playwright | ^1.64 |
+| Linting | ESLint + TS-ESLint | ^10.12 / ^8.71 |
 | Extension | Chrome Manifest V3 | — |
 | Types | @webgpu/types | ^0.1.69 |
+
+TypeScript stays on 6.0.3 until the TypeScript ESLint tooling supports TypeScript 7
+(its current peer dependency requires TypeScript below 6.1).
 
 ## TypeScript Config
 
