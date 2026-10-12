@@ -7,6 +7,6 @@
     "spector-gpu-capture": "./capture-cli.js"
   },
   "dependencies": {
-    "playwright": "^1.62.1"
+    "playwright": "^1.64.0"
   }
 }
