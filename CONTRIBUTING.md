@@ -13,6 +13,10 @@ Thanks for helping improve WebGPU debugging. Contributions can include capture-e
 
 Spector.GPU uses Node.js 22, TypeScript, React 19, Webpack, Vitest, and Playwright.
 
+The root project stays on TypeScript 6 until stable typescript-eslint supports
+TypeScript 7; do not bypass its peer dependency checks. The independent MCP
+package uses TypeScript 7.
+
 ```bash
 git clone https://github.com/sebavan/Spector.gpu.git
 cd Spector.gpu
